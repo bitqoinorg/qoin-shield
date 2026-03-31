@@ -1,0 +1,10 @@
+{
+  "name": "bitqoin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Qonjoint protected Solana wallet",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}
