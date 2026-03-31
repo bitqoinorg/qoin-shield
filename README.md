@@ -1,11 +1,11 @@
 # bitQoin Wallet
 
-Qonjoint protected Solana vault — non-custodial, quantum-resistant 2-of-2 multisig.
+The world's first quantum-proof shield for your coins. Built on Solana using the Qonjoint protocol: both keys required, always.
 
 ## Features
 
-- Qonjoint 2-of-2 multisig — both keys required, always
-- Non-custodial — keys never leave your devices
+- Qonjoint: both keys must sign every transaction, no exceptions
+- Non-custodial: keys never leave your devices
 - 6-language support (EN, JA, ZH, DE, ES, AR)
 - Dark and light mode
 - Orb Markets explorer integration
@@ -19,4 +19,4 @@ Qonjoint protected Solana vault — non-custodial, quantum-resistant 2-of-2 mult
 
 ## Live
 
-[bitqoinorg.github.io/wallet](https://bitqoinorg.github.io/wallet)
+[bitqoin.org](https://bitqoin.org)
