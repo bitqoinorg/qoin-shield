@@ -8,11 +8,13 @@ import {
   explorerAddressUrl,
   explorerUrl,
   transferSPLToken,
+  transferSPLTokenWallets,
 } from "@/lib/solana";
 import {
   SketchCheckmark, SketchX, SketchShield, SketchTwoKeys,
 } from "@/components/sketches";
 import { useApp } from "@/contexts/AppContext";
+import { useWalletPair } from "@/contexts/WalletPairContext";
 import { saveTokenDeposit } from "@/lib/vaultStore";
 import {
   AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -55,6 +57,16 @@ type TxRecord = {
 export default function AccessVault() {
   const [, navigate] = useLocation();
   const { dark } = useApp();
+  const {
+    phantomPubkey, solflarePubkey,
+    phantomConnecting, solflareConnecting,
+    phantomError, solflareError,
+    connectPhantom, connectSolflare,
+    disconnectPhantom, disconnectSolflare,
+    signWithPhantom, signWithSolflare,
+  } = useWalletPair();
+
+  const [accessMode, setAccessMode] = useState<"cold-keys" | "connect-wallets">("cold-keys");
 
   const [shieldInput, setShieldInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,6 +91,7 @@ export default function AccessVault() {
   const [txSig, setTxSig] = useState("");
   const [txError, setTxError] = useState("");
   const [txLoading, setTxLoading] = useState(false);
+  const [signingStep, setSigningStep] = useState<"phantom" | "solflare" | "broadcasting" | null>(null);
   const [selectedToken, setSelectedToken] = useState<TokenBalance | null>(null);
 
   const [chartData, setChartData] = useState<{ time: number; price: number }[]>([]);
@@ -327,6 +340,77 @@ export default function AccessVault() {
     }
   }
 
+  async function handleTransferWallets() {
+    if (!shield || !selectedToken) return;
+    if (!signWithPhantom || !signWithSolflare || !phantomPubkey || !solflarePubkey) return;
+    setTxLoading(true);
+    setTxError("");
+    setTxSig("");
+    setSigningStep(null);
+    try {
+      if (!recipient || !isValidPublicKey(recipient)) throw new Error("Invalid recipient address.");
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) throw new Error("Enter a valid amount.");
+      if (parseFloat(amount) > selectedToken.balance) throw new Error("Insufficient balance.");
+
+      const wrappedPhantom = async (tx: import("@solana/web3.js").Transaction) => {
+        setSigningStep("phantom");
+        return signWithPhantom(tx);
+      };
+      const wrappedSolflare = async (tx: import("@solana/web3.js").Transaction) => {
+        setSigningStep("solflare");
+        return signWithSolflare(tx);
+      };
+
+      setSigningStep("phantom");
+      const sig = await transferSPLTokenWallets(
+        phantomPubkey,
+        solflarePubkey,
+        wrappedPhantom,
+        wrappedSolflare,
+        activeShieldAddress,
+        selectedToken.mint,
+        selectedToken.tokenAccount,
+        recipient,
+        parseFloat(amount),
+        selectedToken.decimals
+      );
+      setSigningStep("broadcasting");
+      setTxSig(sig);
+      const updated = await fetchBalance(activeShieldAddress);
+      setShield(updated);
+    } catch (e: unknown) {
+      setTxError((e as Error).message || "Transfer failed.");
+    } finally {
+      setTxLoading(false);
+      setSigningStep(null);
+    }
+  }
+
+  async function handleViewWallets() {
+    if (!shieldInput.trim() || !isValidPublicKey(shieldInput.trim())) {
+      setError("Enter a valid Qoin address.");
+      return;
+    }
+    setError("");
+    setShield(null);
+    setDexPrices({});
+    setLoading(true);
+    try {
+      const data = await fetchBalance(shieldInput.trim());
+      setShield(data);
+      setActiveShieldAddress(shieldInput.trim());
+      setSidebarSelected("__sol__");
+      setActiveTab("receive");
+      fetchChart("__sol__");
+      const allMints = ["__sol__", ...data.tokens.map(t => t.mint)];
+      fetchDexPrices(allMints);
+    } catch (e: unknown) {
+      setError((e as Error).message || "Failed to load. Check the address.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const selIsSOL = sidebarSelected === "__sol__";
   const selHeld = shield?.tokens.find((t) => t.mint === sidebarSelected) ?? null;
   const selPopular = POPULAR_TOKENS.find((t) => t.mint === sidebarSelected) ?? null;
@@ -430,37 +514,156 @@ export default function AccessVault() {
 
       {/* BODY */}
       {!shield ? (
-        /* ── EMPTY STATE: big centered search ── */
+        /* ── ENTRY SCREEN ── */
         <div className="flex-1 flex flex-col items-center justify-center px-6">
-          <SketchShield className="w-16 h-16 mb-6 opacity-20" />
-          <h1 className="font-sketch text-4xl text-[#1a1a1a] mb-2">Open Your Qoin</h1>
-          <p className="font-handwritten text-base text-[#1a1a1a]/40 mb-2">
-            Paste your Qoin address, Key 1, or Key 2.
+          <SketchShield className="w-14 h-14 mb-5 opacity-15" />
+          <h1 className="font-sketch text-4xl text-[#1a1a1a] mb-1">Open Your Qoin</h1>
+          <p className="font-handwritten text-base text-[#1a1a1a]/40 mb-8">
+            Choose how to access your Qonjoint vault.
           </p>
-          <p className="font-handwritten text-sm text-[#1a1a1a]/25 mb-8">
-            Keys never leave your browser — address is derived locally.
-          </p>
-          <div className="w-full max-w-lg flex gap-3">
-            <input
-              type="text"
-              value={shieldInput}
-              onChange={(e) => { setShieldInput(e.target.value); setError(""); }}
-              onKeyDown={(e) => e.key === "Enter" && handleView()}
-              placeholder="Qoin address, Key 1, or Key 2..."
-              className="input-sketch flex-1 text-base py-4 font-mono"
-              autoFocus
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-            <button
-              onClick={handleView}
-              disabled={loading || !shieldInput.trim()}
-              className="btn-sketch px-7 py-4 text-base flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {loading ? "Loading..." : "Open"}
-            </button>
+
+          {/* Mode selector */}
+          <div className="w-full max-w-md mb-6">
+            <div className="flex border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+              <button
+                onClick={() => { setAccessMode("cold-keys"); setError(""); }}
+                className={`flex-1 py-3 font-body font-bold text-sm transition-all ${accessMode === "cold-keys" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
+              >
+                Cold Keys
+              </button>
+              <button
+                onClick={() => { setAccessMode("connect-wallets"); setError(""); }}
+                className={`flex-1 py-3 font-body font-bold text-sm transition-all border-l-2 border-[#1a1a1a] ${accessMode === "connect-wallets" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
+              >
+                Connect Wallets
+              </button>
+            </div>
           </div>
+
+          {/* Cold Keys mode */}
+          {accessMode === "cold-keys" && (
+            <div className="w-full max-w-md space-y-3">
+              <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+                Paste your Qoin address, Key 1, or Key 2. Keys never leave your browser.
+              </p>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={shieldInput}
+                  onChange={(e) => { setShieldInput(e.target.value); setError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleView()}
+                  placeholder="Qoin address, Key 1, or Key 2..."
+                  className="input-sketch flex-1 text-sm py-3.5 font-mono"
+                  autoFocus
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <button
+                  onClick={handleView}
+                  disabled={loading || !shieldInput.trim()}
+                  className="btn-sketch px-6 py-3.5 text-sm flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Loading..." : "Open"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Connect Wallets mode */}
+          {accessMode === "connect-wallets" && (
+            <div className="w-full max-w-md space-y-4">
+              <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+                Connect Phantom as Key 1 and Solflare as Key 2, then enter your Qoin address.
+              </p>
+
+              {/* Phantom */}
+              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: phantomPubkey ? "#F7931A" : "#1a1a1a", opacity: phantomPubkey ? 1 : 0.2 }} />
+                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 1 — Phantom</span>
+                  </div>
+                  {phantomPubkey && (
+                    <span className="font-mono text-xs text-[#1a1a1a]/40">{phantomPubkey.slice(0, 6)}...{phantomPubkey.slice(-4)}</span>
+                  )}
+                </div>
+                <div className="px-4 py-3">
+                  {phantomError && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantomError}</p>}
+                  {phantomPubkey ? (
+                    <button onClick={disconnectPhantom} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                      Disconnect Phantom
+                    </button>
+                  ) : (
+                    <button
+                      onClick={connectPhantom}
+                      disabled={phantomConnecting}
+                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                    >
+                      {phantomConnecting ? "Connecting..." : "Connect Phantom"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Solflare */}
+              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: solflarePubkey ? "#F7931A" : "#1a1a1a", opacity: solflarePubkey ? 1 : 0.2 }} />
+                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 — Solflare</span>
+                  </div>
+                  {solflarePubkey && (
+                    <span className="font-mono text-xs text-[#1a1a1a]/40">{solflarePubkey.slice(0, 6)}...{solflarePubkey.slice(-4)}</span>
+                  )}
+                </div>
+                <div className="px-4 py-3">
+                  {solflareError && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{solflareError}</p>}
+                  {solflarePubkey ? (
+                    <button onClick={disconnectSolflare} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                      Disconnect Solflare
+                    </button>
+                  ) : (
+                    <button
+                      onClick={connectSolflare}
+                      disabled={solflareConnecting}
+                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                    >
+                      {solflareConnecting ? "Connecting..." : "Connect Solflare"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Qoin address input */}
+              <div>
+                <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">Qoin Address</label>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={shieldInput}
+                    onChange={(e) => { setShieldInput(e.target.value); setError(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && phantomPubkey && solflarePubkey && handleViewWallets()}
+                    placeholder="Your Qoin address..."
+                    className="input-sketch flex-1 text-sm py-3 font-mono"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    onClick={handleViewWallets}
+                    disabled={loading || !shieldInput.trim() || !phantomPubkey || !solflarePubkey}
+                    className="btn-sketch px-5 py-3 text-sm flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Loading..." : "Open"}
+                  </button>
+                </div>
+                {(!phantomPubkey || !solflarePubkey) && shieldInput && (
+                  <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Connect both wallets first.</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {error && (
             <p className="font-handwritten text-sm text-[#F7931A] mt-4">{error}</p>
           )}
@@ -777,14 +980,12 @@ export default function AccessVault() {
                   >
                     Receive
                   </button>
-                  {(selHeld && !selHeld.isNft) && (
-                    <button
-                      onClick={() => { setActiveTab("send"); setSelectedToken(selHeld); }}
-                      className={`flex-1 py-3 font-body font-bold text-sm transition-all ${activeTab === "send" ? "bg-[#F7931A] text-white" : "text-[#F7931A]/60 hover:bg-[#F7931A]/5"}`}
-                    >
-                      Send
-                    </button>
-                  )}
+                  <button
+                    onClick={() => { setActiveTab("send"); if (selHeld) setSelectedToken(selHeld); }}
+                    className={`flex-1 py-3 font-body font-bold text-sm transition-all border-l border-[#1a1a1a]/10 ${activeTab === "send" ? "bg-[#F7931A] text-white" : "text-[#F7931A]/60 hover:bg-[#F7931A]/5"}`}
+                  >
+                    Send
+                  </button>
                 </div>
 
                 {/* RECEIVE */}
@@ -825,134 +1026,244 @@ export default function AccessVault() {
                 )}
 
                 {/* SEND */}
-                {activeTab === "send" && selHeld && !selHeld.isNft && (
+                {activeTab === "send" && (
                   <div className="px-5 py-5 space-y-4">
-                    {/* Keys entry */}
-                    <div className="border-2 border-[#1a1a1a]/10 rounded-sm overflow-hidden">
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAF5] border-b border-[#1a1a1a]/10">
-                        <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
-                        <span className="font-sketch text-sm text-[#1a1a1a]">Two keys required to send</span>
-                        {hasBothKeys && <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both keys loaded</span>}
-                      </div>
-                      <div className="p-4 space-y-3">
-                        <div>
-                          <label className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-wide mb-1 block">Private Key 1</label>
-                          <div className="relative">
-                            <input
-                              type={showPk1 ? "text" : "password"}
-                              placeholder="base58 private key..."
-                              value={pk1}
-                              onChange={(e) => setPk1(e.target.value)}
-                              autoComplete="off"
-                              autoCorrect="off"
-                              spellCheck={false}
-                              className="input-sketch text-sm font-mono py-2 pr-16"
-                            />
-                            <button
-                              onClick={() => setShowPk1(!showPk1)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#1a1a1a] transition-colors"
-                            >
-                              {showPk1 ? "Hide" : "Show"}
-                            </button>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-wide mb-1 block">Private Key 2</label>
-                          <div className="relative">
-                            <input
-                              type={showPk2 ? "text" : "password"}
-                              placeholder="base58 private key..."
-                              value={pk2}
-                              onChange={(e) => setPk2(e.target.value)}
-                              autoComplete="off"
-                              autoCorrect="off"
-                              spellCheck={false}
-                              className="input-sketch text-sm font-mono py-2 pr-16"
-                            />
-                            <button
-                              onClick={() => setShowPk2(!showPk2)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#1a1a1a] transition-colors"
-                            >
-                              {showPk2 ? "Hide" : "Show"}
-                            </button>
-                          </div>
-                        </div>
-                        {(pk1 && !pk1Valid) && <p className="font-handwritten text-sm text-[#F7931A]">Key 1 is invalid.</p>}
-                        {(pk2 && !pk2Valid) && <p className="font-handwritten text-sm text-[#F7931A]">Key 2 is invalid.</p>}
-                      </div>
-                    </div>
-
-                    {/* Transfer form */}
-                    <div>
-                      <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">Recipient Address</label>
-                      <input
-                        type="text"
-                        placeholder="Solana wallet address..."
-                        value={recipient}
-                        onChange={(e) => setRecipient(e.target.value)}
-                        disabled={!hasBothKeys}
-                        className="input-sketch text-sm font-mono py-2.5 disabled:opacity-30"
-                      />
-                      {recipient && !isValidPublicKey(recipient) && (
-                        <div className="flex items-center gap-1.5 mt-1 font-handwritten text-sm">
-                          <SketchX className="w-4 h-4" /> Invalid address
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">
-                        Amount
-                        <span className="ml-2 text-[#1a1a1a]/25 normal-case">balance: {selHeld.balance.toLocaleString()} {selHeld.symbol}</span>
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          placeholder="0.00"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          min="0"
-                          disabled={!hasBothKeys}
-                          className="input-sketch text-sm py-2.5 flex-1 disabled:opacity-30"
-                        />
-                        <button
-                          onClick={() => setAmount(selHeld.balance.toString())}
-                          disabled={!hasBothKeys}
-                          className="font-body font-bold text-xs px-3 border-2 border-[#1a1a1a] rounded-sm hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-25 disabled:cursor-not-allowed"
-                        >
-                          MAX
-                        </button>
-                      </div>
-                      {amount && parseFloat(amount) > selHeld.balance && (
-                        <p className="font-handwritten text-sm text-[#1a1a1a]/60 mt-1">Exceeds balance</p>
-                      )}
-                    </div>
-
-                    {txError && (
-                      <div className="border-2 border-[#F7931A] bg-white rounded-sm p-3 font-body text-sm text-[#1a1a1a]/70">{txError}</div>
-                    )}
-                    {txSig && (
-                      <div className="border-2 border-[#1a1a1a] bg-white rounded-sm p-4 shadow-[3px_3px_0_#1a1a1a]">
-                        <div className="flex items-center gap-2 font-sketch text-base text-[#1a1a1a] mb-2">
-                          <SketchCheckmark className="w-5 h-5" /> Sent!
-                        </div>
-                        <div className="font-mono text-sm break-all text-[#1a1a1a]/60 mb-2">{txSig}</div>
-                        <a href={explorerUrl(txSig, false)} target="_blank" rel="noopener noreferrer" className="font-handwritten text-sm text-[#F7931A] hover:underline">
-                          View on Orb
-                        </a>
+                    {/* No balance state */}
+                    {(!selHeld || selHeld.isNft) && (
+                      <div className="py-6 text-center">
+                        <p className="font-sketch text-xl text-[#1a1a1a]/20 mb-1">0</p>
+                        <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+                          No {selLabel} in this Qoin yet. Deposit first using the Receive address.
+                        </p>
                       </div>
                     )}
 
-                    <button
-                      onClick={handleTransfer}
-                      disabled={!hasBothKeys || txLoading || !recipient || !amount || !isValidPublicKey(recipient) || parseFloat(amount) <= 0 || parseFloat(amount) > selHeld.balance}
-                      className="btn-sketch w-full py-3.5 text-base disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      {!hasBothKeys ? "Enter both keys above to send" : txLoading ? "Signing..." : "Send. Both Keys or Nothing."}
-                    </button>
-                    {hasBothKeys && (
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/25 text-center">
-                        Signed by Key 1 and Key 2. Solana runtime verifies both.
-                      </p>
+                    {selHeld && !selHeld.isNft && (
+                      <>
+                        {/* Wallet mode — show wallet status */}
+                        {accessMode === "connect-wallets" && (
+                          <div className="border-2 border-[#1a1a1a]/10 rounded-sm overflow-hidden">
+                            <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAF5] border-b border-[#1a1a1a]/10">
+                              <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
+                              <span className="font-sketch text-sm text-[#1a1a1a]">Signing wallets</span>
+                              {phantomPubkey && solflarePubkey && !txLoading && (
+                                <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both ready</span>
+                              )}
+                              {txLoading && signingStep && (
+                                <span className="ml-auto font-handwritten text-sm text-[#F7931A] animate-pulse">
+                                  {signingStep === "phantom" && "Waiting for Phantom..."}
+                                  {signingStep === "solflare" && "Waiting for Solflare..."}
+                                  {signingStep === "broadcasting" && "Broadcasting..."}
+                                </span>
+                              )}
+                            </div>
+                            <div className="px-4 py-3 space-y-2.5">
+                              {/* Phantom row */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {txLoading && signingStep === "phantom" ? (
+                                    <span className="w-2 h-2 rounded-full bg-[#F7931A] animate-pulse flex-shrink-0" />
+                                  ) : signingStep === "solflare" || signingStep === "broadcasting" ? (
+                                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                                  ) : (
+                                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: phantomPubkey ? "#F7931A" : "#1a1a1a", opacity: phantomPubkey ? 1 : 0.15 }} />
+                                  )}
+                                  <span className="font-body font-bold text-xs text-[#1a1a1a]/60">Phantom — Key 1</span>
+                                  {txLoading && signingStep === "phantom" && (
+                                    <span className="font-handwritten text-xs text-[#F7931A]">Approve in Phantom</span>
+                                  )}
+                                  {(signingStep === "solflare" || signingStep === "broadcasting") && (
+                                    <span className="font-handwritten text-xs text-green-600">Signed</span>
+                                  )}
+                                </div>
+                                {phantomPubkey ? (
+                                  <span className="font-mono text-xs text-[#1a1a1a]/40">{phantomPubkey.slice(0, 6)}...{phantomPubkey.slice(-4)}</span>
+                                ) : (
+                                  <span className="font-handwritten text-xs text-[#1a1a1a]/25">Not connected</span>
+                                )}
+                              </div>
+                              {/* Solflare row */}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {txLoading && signingStep === "solflare" ? (
+                                    <span className="w-2 h-2 rounded-full bg-[#F7931A] animate-pulse flex-shrink-0" />
+                                  ) : signingStep === "broadcasting" ? (
+                                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                                  ) : (
+                                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: solflarePubkey ? "#F7931A" : "#1a1a1a", opacity: solflarePubkey ? 1 : 0.15 }} />
+                                  )}
+                                  <span className="font-body font-bold text-xs text-[#1a1a1a]/60">Solflare — Key 2</span>
+                                  {txLoading && signingStep === "solflare" && (
+                                    <span className="font-handwritten text-xs text-[#F7931A]">Approve in Solflare</span>
+                                  )}
+                                  {signingStep === "broadcasting" && (
+                                    <span className="font-handwritten text-xs text-green-600">Signed</span>
+                                  )}
+                                </div>
+                                {solflarePubkey ? (
+                                  <span className="font-mono text-xs text-[#1a1a1a]/40">{solflarePubkey.slice(0, 6)}...{solflarePubkey.slice(-4)}</span>
+                                ) : (
+                                  <span className="font-handwritten text-xs text-[#1a1a1a]/25">Not connected</span>
+                                )}
+                              </div>
+                              <p className="font-handwritten text-xs text-[#1a1a1a]/25 pt-0.5">
+                                Phantom signs first, then Solflare. Two separate approvals. One transaction on-chain.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Cold Keys mode — PK inputs */}
+                        {accessMode === "cold-keys" && (
+                          <div className="border-2 border-[#1a1a1a]/10 rounded-sm overflow-hidden">
+                            <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAF5] border-b border-[#1a1a1a]/10">
+                              <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
+                              <span className="font-sketch text-sm text-[#1a1a1a]">Paste your two cold keys</span>
+                              {hasBothKeys && <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both keys loaded</span>}
+                            </div>
+                            <p className="font-handwritten text-xs text-[#1a1a1a]/30 px-4 pt-2.5">
+                              Keys are used to sign locally. They are never sent to any server.
+                            </p>
+                            <div className="p-4 space-y-3">
+                              <div>
+                                <label className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-wide mb-1 block">Private Key 1</label>
+                                <div className="relative">
+                                  <input
+                                    type={showPk1 ? "text" : "password"}
+                                    placeholder="base58 private key..."
+                                    value={pk1}
+                                    onChange={(e) => setPk1(e.target.value)}
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    className="input-sketch text-sm font-mono py-2 pr-16"
+                                  />
+                                  <button
+                                    onClick={() => setShowPk1(!showPk1)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#1a1a1a] transition-colors"
+                                  >
+                                    {showPk1 ? "Hide" : "Show"}
+                                  </button>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-wide mb-1 block">Private Key 2</label>
+                                <div className="relative">
+                                  <input
+                                    type={showPk2 ? "text" : "password"}
+                                    placeholder="base58 private key..."
+                                    value={pk2}
+                                    onChange={(e) => setPk2(e.target.value)}
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    className="input-sketch text-sm font-mono py-2 pr-16"
+                                  />
+                                  <button
+                                    onClick={() => setShowPk2(!showPk2)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#1a1a1a] transition-colors"
+                                  >
+                                    {showPk2 ? "Hide" : "Show"}
+                                  </button>
+                                </div>
+                              </div>
+                              {(pk1 && !pk1Valid) && <p className="font-handwritten text-sm text-[#F7931A]">Key 1 is invalid.</p>}
+                              {(pk2 && !pk2Valid) && <p className="font-handwritten text-sm text-[#F7931A]">Key 2 is invalid.</p>}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Transfer form — shared between modes */}
+                        {(() => {
+                          const canSendKeys = accessMode === "cold-keys" && hasBothKeys;
+                          const canSendWallets = accessMode === "connect-wallets" && !!(phantomPubkey && solflarePubkey);
+                          const canSend = canSendKeys || canSendWallets;
+                          return (
+                            <>
+                              <div>
+                                <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">Recipient Address</label>
+                                <input
+                                  type="text"
+                                  placeholder="Solana wallet address..."
+                                  value={recipient}
+                                  onChange={(e) => setRecipient(e.target.value)}
+                                  disabled={!canSend}
+                                  className="input-sketch text-sm font-mono py-2.5 disabled:opacity-30"
+                                />
+                                {recipient && !isValidPublicKey(recipient) && (
+                                  <div className="flex items-center gap-1.5 mt-1 font-handwritten text-sm">
+                                    <SketchX className="w-4 h-4" /> Invalid address
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">
+                                  Amount
+                                  <span className="ml-2 text-[#1a1a1a]/25 normal-case">balance: {selHeld.balance.toLocaleString()} {selHeld.symbol}</span>
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    min="0"
+                                    disabled={!canSend}
+                                    className="input-sketch text-sm py-2.5 flex-1 disabled:opacity-30"
+                                  />
+                                  <button
+                                    onClick={() => setAmount(selHeld.balance.toString())}
+                                    disabled={!canSend}
+                                    className="font-body font-bold text-xs px-3 border-2 border-[#1a1a1a] rounded-sm hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-25 disabled:cursor-not-allowed"
+                                  >
+                                    MAX
+                                  </button>
+                                </div>
+                                {amount && parseFloat(amount) > selHeld.balance && (
+                                  <p className="font-handwritten text-sm text-[#1a1a1a]/60 mt-1">Exceeds balance</p>
+                                )}
+                              </div>
+
+                              {txError && (
+                                <div className="border-2 border-[#F7931A] bg-white rounded-sm p-3 font-body text-sm text-[#1a1a1a]/70">{txError}</div>
+                              )}
+                              {txSig && (
+                                <div className="border-2 border-[#1a1a1a] bg-white rounded-sm p-4 shadow-[3px_3px_0_#1a1a1a]">
+                                  <div className="flex items-center gap-2 font-sketch text-base text-[#1a1a1a] mb-2">
+                                    <SketchCheckmark className="w-5 h-5" /> Sent!
+                                  </div>
+                                  <div className="font-mono text-sm break-all text-[#1a1a1a]/60 mb-2">{txSig}</div>
+                                  <a href={explorerUrl(txSig, false)} target="_blank" rel="noopener noreferrer" className="font-handwritten text-sm text-[#F7931A] hover:underline">
+                                    View on Orb
+                                  </a>
+                                </div>
+                              )}
+
+                              <button
+                                onClick={accessMode === "connect-wallets" ? handleTransferWallets : handleTransfer}
+                                disabled={!canSend || txLoading || !recipient || !amount || !isValidPublicKey(recipient) || parseFloat(amount) <= 0 || parseFloat(amount) > selHeld.balance}
+                                className="btn-sketch w-full py-3.5 text-base disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                {!canSend
+                                  ? (accessMode === "connect-wallets" ? "Connect both wallets to send" : "Load both cold keys above to send")
+                                  : txLoading
+                                    ? signingStep === "phantom" ? "Step 1/2 — Approve in Phantom..."
+                                    : signingStep === "solflare" ? "Step 2/2 — Approve in Solflare..."
+                                    : signingStep === "broadcasting" ? "Broadcasting to Solana..."
+                                    : "Signing..."
+                                  : "Send. Both Keys or Nothing."}
+                              </button>
+                              {canSend && !txLoading && (
+                                <p className="font-handwritten text-xs text-[#1a1a1a]/25 text-center">
+                                  {accessMode === "connect-wallets"
+                                    ? "Two wallet popups, one after the other. Both must approve."
+                                    : "Both keys sign locally in your browser. Never sent to any server."}
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
                     )}
                   </div>
                 )}
@@ -994,12 +1305,18 @@ export default function AccessVault() {
 
                 <div className="overflow-y-auto" style={{ maxHeight: "380px" }}>
                   {(() => {
+                    const ataAddr = !selIsSOL ? getTxAddr(activeShieldAddress, sidebarSelected) : null;
+                    const isMyAddr = (addr: string) =>
+                      addr === activeShieldAddress || (ataAddr !== null && (addr === ataAddr));
+                    const isMyTokenTransfer = (t: { mint: string; from: string; to: string; fromAccount: string; toAccount: string }) =>
+                      t.mint === sidebarSelected &&
+                      (isMyAddr(t.to) || isMyAddr(t.from) || (ataAddr !== null && (t.toAccount === ataAddr || t.fromAccount === ataAddr)));
+                    const isTokenIn = (t: { to: string; toAccount: string }) =>
+                      isMyAddr(t.to) || (ataAddr !== null && t.toAccount === ataAddr);
+
                     const filtered = txHistory.filter((tx) => {
                       const tt = !selIsSOL
-                        ? tx.tokenTransfers.find(t =>
-                            t.mint === sidebarSelected &&
-                            (t.to === activeShieldAddress || t.from === activeShieldAddress)
-                          )
+                        ? tx.tokenTransfers.find(t => isMyTokenTransfer(t))
                         : null;
                       const nt = selIsSOL
                         ? tx.nativeTransfers.find(t =>
@@ -1007,7 +1324,7 @@ export default function AccessVault() {
                           )
                         : null;
                       const isIn = tt
-                        ? tt.to === activeShieldAddress
+                        ? isTokenIn(tt)
                         : nt
                           ? nt.to === activeShieldAddress
                           : null;
@@ -1029,17 +1346,14 @@ export default function AccessVault() {
                       <div className="divide-y divide-[#1a1a1a]/6">
                         {filtered.map((tx) => {
                           const tt = !selIsSOL
-                            ? tx.tokenTransfers.find(t =>
-                                t.mint === sidebarSelected &&
-                                (t.to === activeShieldAddress || t.from === activeShieldAddress)
-                              )
+                            ? tx.tokenTransfers.find(t => isMyTokenTransfer(t))
                             : null;
                           const nt = selIsSOL
                             ? tx.nativeTransfers.find(t =>
                                 t.to === activeShieldAddress || t.from === activeShieldAddress
                               )
                             : null;
-                          const isIn = tt ? tt.to === activeShieldAddress : nt ? nt.to === activeShieldAddress : null;
+                          const isIn = tt ? isTokenIn(tt) : nt ? nt.to === activeShieldAddress : null;
                           const amt = tt
                             ? tt.amount > 0
                               ? tt.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
