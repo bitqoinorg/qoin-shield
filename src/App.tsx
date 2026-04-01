@@ -1,7 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/contexts/AppContext";
 import Landing from "@/pages/Landing";
 import GenerateVault from "@/pages/GenerateVault";
@@ -39,19 +37,16 @@ function Router() {
   );
 }
 
-function App() {
+const queryClientInstance = new QueryClient();
+
+export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppProvider>
-          <WouterRouter base="/">
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </AppProvider>
-      </TooltipProvider>
+    <QueryClientProvider client={queryClientInstance}>
+      <AppProvider>
+        <WouterRouter base="/wallet">
+          <Router />
+        </WouterRouter>
+      </AppProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;
