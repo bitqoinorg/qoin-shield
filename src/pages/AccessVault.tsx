@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   isValidPrivateKey,
@@ -45,6 +45,13 @@ const POPULAR_TOKENS = [
   { symbol: "BUTTCOIN", mint: "Cm6fNnMk7NfzStP9CZpsQA2v3jjzbcYGAxdJySmHpump" },
 ];
 
+type TxRecord = {
+  sig: string; ts: number;
+  tokenTransfers: Array<{ mint: string; from: string; to: string; amount: number }>;
+  nativeTransfers: Array<{ from: string; to: string; lamports: number }>;
+  err: unknown;
+};
+
 export default function AccessVault() {
   const [, navigate] = useLocation();
   const { dark } = useApp();
@@ -78,13 +85,13 @@ export default function AccessVault() {
   const [chartLoading, setChartLoading] = useState(false);
   const [chartChange, setChartChange] = useState<number | null>(null);
 
-  const [txHistory, setTxHistory] = useState<Array<{
-    sig: string; ts: number;
-    tokenTransfers: Array<{ mint: string; from: string; to: string; amount: number }>;
-    nativeTransfers: Array<{ from: string; to: string; lamports: number }>;
-    err: unknown;
-  }>>([]);
+  const [txHistory, setTxHistory] = useState<TxRecord[]>([]);
   const [txHistoryLoading, setTxHistoryLoading] = useState(false);
+  const [txHistoryHasMore, setTxHistoryHasMore] = useState(false);
+  const [txHistoryLoadingMore, setTxHistoryLoadingMore] = useState(false);
+  const [historyTab, setHistoryTab] = useState<"received" | "sent">("received");
+  const [newDepositAlert, setNewDepositAlert] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [showAddToken, setShowAddToken] = useState(false);
   const [customMint, setCustomMint] = useState("");
@@ -130,20 +137,85 @@ export default function AccessVault() {
     fetchChart(sidebarSelected);
   }, [sidebarSelected, fetchChart]);
 
+  const PAGE_LIMIT = 20;
+
+  const getTxAddr = useCallback((shieldAddr: string, mint: string) =>
+    mint === "__sol__" ? shieldAddr : getTokenDepositAddress(shieldAddr, mint),
+  []);
+
   useEffect(() => {
     if (!activeShieldAddress) return;
-    const addr = sidebarSelected === "__sol__"
-      ? activeShieldAddress
-      : getTokenDepositAddress(activeShieldAddress, sidebarSelected);
+    const addr = getTxAddr(activeShieldAddress, sidebarSelected);
     if (!addr) return;
     setTxHistory([]);
+    setTxHistoryHasMore(false);
     setTxHistoryLoading(true);
-    fetch(`/api/qoin/tx-history?address=${encodeURIComponent(addr)}&limit=10`)
+    fetch(`/api/qoin/tx-history?address=${encodeURIComponent(addr)}&limit=${PAGE_LIMIT}`)
       .then(r => r.json())
-      .then((d: typeof txHistory) => setTxHistory(Array.isArray(d) ? d : []))
+      .then((d: TxRecord[]) => {
+        const list = Array.isArray(d) ? d : [];
+        setTxHistory(list);
+        setTxHistoryHasMore(list.length === PAGE_LIMIT);
+      })
       .catch(() => setTxHistory([]))
       .finally(() => setTxHistoryLoading(false));
-  }, [sidebarSelected, activeShieldAddress]);
+  }, [sidebarSelected, activeShieldAddress, getTxAddr]);
+
+  const loadMoreTxHistory = useCallback(async () => {
+    if (!activeShieldAddress || txHistoryLoadingMore || txHistory.length === 0) return;
+    const addr = getTxAddr(activeShieldAddress, sidebarSelected);
+    if (!addr) return;
+    const lastSig = txHistory[txHistory.length - 1].sig;
+    setTxHistoryLoadingMore(true);
+    try {
+      const r = await fetch(`/api/qoin/tx-history?address=${encodeURIComponent(addr)}&limit=${PAGE_LIMIT}&before=${encodeURIComponent(lastSig)}`);
+      const d: TxRecord[] = await r.json();
+      const list = Array.isArray(d) ? d : [];
+      setTxHistory(prev => [...prev, ...list]);
+      setTxHistoryHasMore(list.length === PAGE_LIMIT);
+    } catch { /* ignore */ }
+    finally { setTxHistoryLoadingMore(false); }
+  }, [activeShieldAddress, sidebarSelected, txHistory, txHistoryLoadingMore, getTxAddr]);
+
+  useEffect(() => {
+    if (!activeShieldAddress) {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      return;
+    }
+    const poll = async () => {
+      const addr = getTxAddr(activeShieldAddress, sidebarSelected);
+      if (!addr) return;
+      try {
+        const [txRes, balRes] = await Promise.all([
+          fetch(`/api/qoin/tx-history?address=${encodeURIComponent(addr)}&limit=1`),
+          fetch(`/api/qoin/balance?address=${encodeURIComponent(activeShieldAddress)}`),
+        ]);
+        const [latestList, balData] = await Promise.all([txRes.json(), balRes.json()]);
+        if (Array.isArray(latestList) && latestList.length > 0) {
+          setTxHistory(prev => {
+            if (prev.length === 0 || latestList[0].sig !== prev[0].sig) {
+              setNewDepositAlert(true);
+              setTimeout(() => setNewDepositAlert(false), 6000);
+              fetch(`/api/qoin/tx-history?address=${encodeURIComponent(addr)}&limit=${PAGE_LIMIT}`)
+                .then(r => r.json())
+                .then((d: TxRecord[]) => {
+                  const list = Array.isArray(d) ? d : [];
+                  setTxHistory(list);
+                  setTxHistoryHasMore(list.length === PAGE_LIMIT);
+                }).catch(() => {});
+            }
+            return prev;
+          });
+        }
+        if (balRes.ok && balData && !balData.error) {
+          setShield(balData);
+        }
+      } catch { /* ignore */ }
+    };
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = setInterval(poll, 15000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [activeShieldAddress, sidebarSelected, getTxAddr]);
 
   const fetchDexPrices = useCallback((mints: string[]) => {
     if (mints.length === 0) return;
@@ -575,7 +647,7 @@ export default function AccessVault() {
 
           {/* RIGHT CONTENT */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-2xl mx-auto px-6 py-6 space-y-5">
+            <div className="max-w-4xl mx-auto px-6 py-6 space-y-5">
 
               {/* Token header */}
               <div className="flex items-center gap-4">
@@ -622,6 +694,9 @@ export default function AccessVault() {
                 )}
               </div>
 
+              {/* TWO-COLUMN: chart left, receive/send right */}
+              <div className="grid grid-cols-2 gap-4 items-start">
+
               {/* PRICE CHART */}
               <div className="border-2 border-[#1a1a1a] rounded-sm bg-white overflow-hidden shadow-[3px_3px_0_#1a1a1a]">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10">
@@ -632,7 +707,7 @@ export default function AccessVault() {
                   )}
                 </div>
                 {chartData.length > 0 ? (
-                  <div className="h-44 px-2 py-3">
+                  <div className="h-56 px-2 py-3">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                         <defs>
@@ -677,7 +752,7 @@ export default function AccessVault() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-44 flex items-center justify-center">
+                  <div className="h-56 flex items-center justify-center">
                     <div className="text-center">
                       <div className="font-sketch text-2xl text-[#1a1a1a]/10 mb-1">--</div>
                       <div className="font-handwritten text-sm text-[#1a1a1a]/40">Price chart not available</div>
@@ -739,51 +814,6 @@ export default function AccessVault() {
                         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M5.5 2H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V7.5M8 1h4m0 0v4m0-4L5.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         Orb
                       </a>
-                    </div>
-
-                    {/* Transaction history */}
-                    <div className="border-t border-[#1a1a1a]/10 pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="font-body font-bold text-xs text-[#1a1a1a]/40 uppercase tracking-wide">Recent Transactions</span>
-                        {txHistoryLoading && <span className="font-handwritten text-xs text-[#1a1a1a]/30">Loading...</span>}
-                      </div>
-                      {!txHistoryLoading && txHistory.length === 0 && (
-                        <p className="font-handwritten text-sm text-[#1a1a1a]/30 text-center py-3">No transactions yet.</p>
-                      )}
-                      <div className="space-y-1.5">
-                        {txHistory.map((tx) => {
-                          const tt = tx.tokenTransfers.find(t =>
-                            !selIsSOL && (t.to === receiveAddr || t.from === receiveAddr)
-                          );
-                          const nt = selIsSOL ? tx.nativeTransfers.find(t =>
-                            t.to === activeShieldAddress || t.from === activeShieldAddress
-                          ) : null;
-                          const isIn = tt ? tt.to === receiveAddr : nt ? nt.to === activeShieldAddress : null;
-                          const amt = tt
-                            ? `${tt.amount > 0 ? tt.amount.toLocaleString(undefined, { maximumFractionDigits: 4 }) : ""}`
-                            : nt ? `${(nt.lamports / 1e9).toLocaleString(undefined, { maximumFractionDigits: 4 })} SOL` : "";
-                          const date = new Date(tx.ts * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-                          return (
-                            <a
-                              key={tx.sig}
-                              href={explorerUrl(tx.sig, false)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-3 px-3 py-2.5 rounded-sm border border-[#1a1a1a]/8 hover:border-[#F7931A]/40 hover:bg-[#F7931A]/5 transition-all group"
-                            >
-                              <span className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${tx.err ? "bg-red-100 text-red-500" : isIn === true ? "bg-green-100 text-green-600" : isIn === false ? "bg-[#F7931A]/10 text-[#F7931A]" : "bg-[#1a1a1a]/5 text-[#1a1a1a]/40"}`}>
-                                {tx.err ? "!" : isIn === true ? "↓" : isIn === false ? "↑" : "·"}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-mono text-xs text-[#1a1a1a] truncate">{tx.sig.slice(0, 18)}...</div>
-                                <div className="font-handwritten text-xs text-[#1a1a1a]/40">{date}</div>
-                              </div>
-                              {amt && <span className="font-body font-bold text-xs text-[#1a1a1a]/60 flex-shrink-0">{amt}</span>}
-                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0 opacity-0 group-hover:opacity-40 transition-opacity"><path d="M1.5 1.5h7m0 0v7m0-7L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                            </a>
-                          );
-                        })}
-                      </div>
                     </div>
                   </div>
                 )}
@@ -920,6 +950,138 @@ export default function AccessVault() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* END TWO-COLUMN */}
+              </div>
+
+              {/* NEW DEPOSIT ALERT */}
+              {newDepositAlert && (
+                <div className="flex items-center gap-3 px-4 py-3 border-2 border-[#F7931A] rounded-sm bg-[#F7931A]/8 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-[#F7931A] flex-shrink-0" />
+                  <span className="font-body font-bold text-sm text-[#F7931A]">New transaction detected. Updating balance.</span>
+                </div>
+              )}
+
+              {/* HISTORY CARD */}
+              <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#1a1a1a]/10">
+                  <div className="flex items-center gap-2">
+                    <span className="font-sketch text-base text-[#1a1a1a]">History</span>
+                    {txHistoryLoading && <span className="font-handwritten text-xs text-[#1a1a1a]/30">Loading...</span>}
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setHistoryTab("received")}
+                      className={`px-3 py-1 text-xs font-body font-bold rounded-sm transition-all ${historyTab === "received" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                    >
+                      Received
+                    </button>
+                    <button
+                      onClick={() => setHistoryTab("sent")}
+                      className={`px-3 py-1 text-xs font-body font-bold rounded-sm transition-all ${historyTab === "sent" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                    >
+                      Sent
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-y-auto" style={{ maxHeight: "380px" }}>
+                  {(() => {
+                    const filtered = txHistory.filter((tx) => {
+                      const tt = tx.tokenTransfers.find(t =>
+                        !selIsSOL && (t.to === receiveAddr || t.from === receiveAddr)
+                      );
+                      const nt = selIsSOL
+                        ? tx.nativeTransfers.find(t =>
+                            t.to === activeShieldAddress || t.from === activeShieldAddress
+                          )
+                        : null;
+                      const isIn = tt
+                        ? tt.to === receiveAddr
+                        : nt
+                          ? nt.to === activeShieldAddress
+                          : null;
+                      if (isIn === null) return false;
+                      return historyTab === "received" ? isIn === true : isIn === false;
+                    });
+
+                    if (!txHistoryLoading && filtered.length === 0) {
+                      return (
+                        <div className="py-10 text-center">
+                          <p className="font-handwritten text-sm text-[#1a1a1a]/30">
+                            {historyTab === "received" ? "No received transactions yet." : "No sent transactions yet."}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="divide-y divide-[#1a1a1a]/6">
+                        {filtered.map((tx) => {
+                          const tt = tx.tokenTransfers.find(t =>
+                            !selIsSOL && (t.to === receiveAddr || t.from === receiveAddr)
+                          );
+                          const nt = selIsSOL
+                            ? tx.nativeTransfers.find(t =>
+                                t.to === activeShieldAddress || t.from === activeShieldAddress
+                              )
+                            : null;
+                          const isIn = tt ? tt.to === receiveAddr : nt ? nt.to === activeShieldAddress : null;
+                          const amt = tt
+                            ? tt.amount > 0
+                              ? tt.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })
+                              : ""
+                            : nt
+                              ? `${(nt.lamports / 1e9).toLocaleString(undefined, { maximumFractionDigits: 6 })} SOL`
+                              : "";
+                          const sym = !selIsSOL
+                            ? (selHeld?.symbol ?? selMeta?.symbol ?? selPopular?.symbol ?? "")
+                            : "SOL";
+                          const date = new Date(tx.ts * 1000).toLocaleDateString(undefined, {
+                            month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                          });
+                          return (
+                            <a
+                              key={tx.sig}
+                              href={explorerUrl(tx.sig, false)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-[#FAFAF5] transition-all group"
+                            >
+                              <span
+                                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${tx.err ? "bg-red-100 text-red-500" : isIn === true ? "bg-green-100 text-green-600" : "bg-[#F7931A]/10 text-[#F7931A]"}`}
+                              >
+                                {tx.err ? "!" : isIn === true ? "↓" : "↑"}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-mono text-xs text-[#1a1a1a]/60 truncate">{tx.sig.slice(0, 20)}...</div>
+                                <div className="font-handwritten text-xs text-[#1a1a1a]/35 mt-0.5">{date}</div>
+                              </div>
+                              {amt && (
+                                <span className="font-body font-bold text-sm text-[#1a1a1a] flex-shrink-0 tabular-nums">
+                                  {isIn === false ? "-" : ""}{amt} {sym}
+                                </span>
+                              )}
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0 opacity-0 group-hover:opacity-30 transition-opacity"><path d="M1.5 1.5h7m0 0v7m0-7L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </a>
+                          );
+                        })}
+                        {txHistoryHasMore && (
+                          <div className="px-4 py-3">
+                            <button
+                              onClick={loadMoreTxHistory}
+                              disabled={txHistoryLoadingMore}
+                              className="w-full py-2.5 border-2 border-[#1a1a1a]/20 rounded-sm font-body font-bold text-xs text-[#1a1a1a]/50 hover:border-[#1a1a1a] hover:text-[#1a1a1a] transition-all disabled:opacity-30"
+                            >
+                              {txHistoryLoadingMore ? "Loading..." : "Load more"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
 
             </div>
