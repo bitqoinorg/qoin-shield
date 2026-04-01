@@ -1,7 +1,11 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/contexts/AppContext";
+import { WalletPairProvider } from "@/contexts/WalletPairContext";
 import Landing from "@/pages/Landing";
+import Qoin from "@/pages/Qoin";
 import GenerateVault from "@/pages/GenerateVault";
 import AccessVault from "@/pages/AccessVault";
 import NotFound from "@/pages/not-found";
@@ -21,6 +25,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/qoin" component={Qoin} />
       <Route path="/qoin/create" component={GenerateVault} />
       <Route path="/qoin/open" component={AccessVault} />
       <Route path="/why/problem" component={Problem} />
@@ -37,16 +42,21 @@ function Router() {
   );
 }
 
-const queryClientInstance = new QueryClient();
-
-export default function App() {
+function App() {
   return (
-    <QueryClientProvider client={queryClientInstance}>
-      <AppProvider>
-        <WouterRouter base="/wallet">
-          <Router />
-        </WouterRouter>
-      </AppProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AppProvider>
+          <WalletPairProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </WalletPairProvider>
+        </AppProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
+
+export default App;
