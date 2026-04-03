@@ -24,13 +24,6 @@ function MoonIcon() {
   );
 }
 
-function XIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-    </svg>
-  );
-}
 
 function GitHubIcon() {
   return (
@@ -254,16 +247,6 @@ export default function Navbar() {
             <LangPicker />
 
             <a
-              href="https://x.com/bitqoinorg"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`p-2 transition-colors ${dark ? "text-[#FAFAF5]/60 hover:text-[#F7931A]" : "text-[#1a1a1a]/50 hover:text-[#F7931A]"}`}
-              title="X (Twitter)"
-            >
-              <XIcon />
-            </a>
-
-            <a
               href="https://github.com/bitqoinorg"
               target="_blank"
               rel="noopener noreferrer"
@@ -337,10 +320,6 @@ export default function Navbar() {
 
             <div className={`flex items-center gap-3 pt-3 border-t ${dark ? "border-[#FAFAF5]/10" : "border-[#1a1a1a]/10"}`}>
               <LangPicker />
-              <a href="https://x.com/bitqoinorg" target="_blank" rel="noopener noreferrer"
-                className={`p-2 ${dark ? "text-[#FAFAF5]/60" : "text-[#1a1a1a]/50"}`}>
-                <XIcon />
-              </a>
               <a href="https://github.com/bitqoinorg" target="_blank" rel="noopener noreferrer"
                 className={`p-2 ${dark ? "text-[#FAFAF5]/60" : "text-[#1a1a1a]/50"}`}>
                 <GitHubIcon />
