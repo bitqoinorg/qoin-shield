@@ -34,12 +34,14 @@ export interface Translations {
   proof: {
     badge: string; title: string; body: string;
     key1Title: string; key1Sub: string; pubKeyLabel: string;
-    copyBtn: string; copiedBtn: string;
+    copyBtn: string; copiedBtn: string; copyKey: string;
     statsPublished: string; statsNeeded: string; statsYouHave: string;
     cannotMove: string;
     liveTitle: string; liveSub: string; fetchingRpc: string;
     solBalance: string; holdings: string; qoinjointLock: string;
     qoinAddress: string; verifyBtn: string; reloadBtn: string;
+    vaultLabel: string; loading: string; refresh: string;
+    viewExplorer: string; noTokens: string;
   };
   how: {
     badge: string; title: string; body: string;
@@ -84,15 +86,15 @@ export interface Translations {
     protocol: { badge: string; title: string; p1: string; p2: string; handwritten: string; };
     keyManagement: { badge: string; title: string; p1: string; p2: string; handwritten: string; };
     hackChallenge: { badge: string; title: string; body: string; };
-    liveBalance: { badge: string; title: string; body: string; };
+    liveBalance: { badge: string; title: string; body: string; subtitle: string; };
     faqPage: { badge: string; title: string; subtitle: string; };
   };
-  common: { backHome: string; darkMode: string; lightMode: string; };
+  common: { darkMode: string; lightMode: string; };
 }
 
 const en: Translations = {
   nav: {
-    announcement: 'Qonjoint protection. Both keys must sign. No server. No exceptions. Pure Solana math.',
+    announcement: 'Qonjoint protection. Both keys must sign. No server. No exceptions. Solana and Ethereum.',
     whyQoin: 'Why Qoin', howItWorks: 'How it Works', proof: 'Proof', faq: 'FAQ',
     openQoin: 'Open Qoin', createQoin: 'Create Qoin',
     subWhy: [
@@ -135,6 +137,8 @@ const en: Translations = {
     fetchingRpc: 'Fetching from Solana RPC...',
     solBalance: 'SOL Balance', holdings: 'bitQoin Holdings', qoinjointLock: 'Qonjoint Lock',
     qoinAddress: 'Qoin address:', verifyBtn: 'Verify yourself on Orb', reloadBtn: 'Reload Balance',
+    copyKey: 'Copy Key 1', vaultLabel: 'Live Vault Balance', loading: 'Loading...', refresh: 'Refresh',
+    viewExplorer: 'View on Solana Explorer', noTokens: 'No tokens in this vault yet.',
   },
   how: {
     badge: 'Three Steps', title: 'Upgrade Your Wallet in 60 Seconds',
@@ -159,8 +163,8 @@ const en: Translations = {
       { q: 'What happens if I lose one key?', a: 'Your tokens are locked until all keys are present. This is a feature, not a bug. Store each key in a different physical location. Both are required. If you lose one permanently, the tokens are inaccessible. Plan accordingly.' },
       { q: 'Is this quantum-proof?', a: "Multi-key protection means that even if a quantum computer derives one private key from its public key using Shor's Algorithm, it still cannot move anything. Both keys must sign. One compromised key achieves nothing." },
       { q: 'Do you have access to my tokens?', a: 'No. Keys are generated locally in your browser and never transmitted to any server. We have no access to your keys or your tokens. Zero.' },
-      { q: 'What tokens can I protect?', a: 'Any SPL token on Solana. Memecoins, stablecoins, NFTs, anything. If it lives on Solana, it can be held in a Qoin.' },
-      { q: 'What are the fees?', a: 'Creating a Qoin requires a small Solana network fee to register the protection on-chain. Around 0.003 SOL. Sending tokens costs the standard Solana transaction fee. No additional fees from us.' },
+      { q: 'What tokens can I protect?', a: 'Any SPL token on Solana, or any ERC-20 token on Ethereum. Memecoins, stablecoins, NFTs, anything. If it lives on-chain, it can be held in a Qoin.' },
+      { q: 'Do I need SOL for gas fees?', a: 'No. BITQ covers all gas fees during beta. Create and use your Qoin for free, no SOL needed for transactions.' },
       { q: 'Can I use this on mobile?', a: 'Yes. The app is fully browser-based. Any device with a modern browser works.' },
     ],
   },
@@ -170,7 +174,7 @@ const en: Translations = {
     pk1Label: 'KEY 1 PRIVATE KEY', pk2Label: 'KEY 2 PRIVATE KEY',
     pk1Sub: 'Generated locally. Never transmitted.', pk2Sub: 'Generated locally. Never transmitted.',
     generateBtn: 'Generate Both Keys', activateBtn: 'Activate Qonjoint Protection', activating: 'Activating...',
-    fundNote: 'Fund this address with at least 0.01 SOL before activating:',
+    fundNote: 'Gas fees covered by BITQ, no SOL needed from you.',
     successTitle: 'Qoin Activated.', successSub: 'Your Qonjoint wallet is live on Solana mainnet.',
     addressLabel: 'Qoin Address', txLabel: 'Activation Transaction', openBtn: 'Open Your Qoin',
     warningTitle: 'Store Both Keys Safely', warningBody: 'If you lose either key, your tokens are permanently inaccessible. Store each key in a separate secure location.',
@@ -183,7 +187,7 @@ const en: Translations = {
     receive: 'Receive', send: 'Send',
     receiveTitle: 'Receive', receiveNote: 'Send tokens to this address',
     sendTitle: 'Send', recipientLabel: 'RECIPIENT ADDRESS', amountLabel: 'AMOUNT',
-    maxBtn: 'MAX', sendBtn: 'Send. Both Keys or Nothing.', sending: 'Signing and Broadcasting...', signedBy: 'Signed by Key 1 and Key 2. Solana runtime verifies both.',
+    maxBtn: 'MAX', sendBtn: 'Send. Both Keys or Nothing.', sending: 'Signing and Broadcasting...', signedBy: 'Signed by Key 1 and Key 2. Both signatures verified on-chain.',
     balanceLabel: 'balance:', copyAddr: 'Copy', copied: 'Copied',
     viewOrb: 'View on Orb', portfolio: 'Portfolio', totalValue: 'Total Value',
     tokens: 'tokens', depositAddress: 'Deposit address', noBalance: 'No tokens found.',
@@ -207,12 +211,12 @@ const en: Translations = {
       badge: 'Quantum Threat', title: 'Quantum Computers Are Coming for Single Keys',
       p1: "Quantum computers running Shor's Algorithm can derive a private key from a public key. Every single-key wallet on earth will eventually be at risk. This is not science fiction. It is a matter of when.",
       p2: "With Qoin's Qonjoint protection, compromising one key achieves nothing. Even if a quantum computer cracks Key 1, the tokens still cannot move. Key 2 must also sign. The attacker would need to crack both keys simultaneously.",
-      p3: 'Split-key architecture is the most practical quantum-resistant approach available on Solana today. No special hardware required. No exotic cryptography. Just two independent keys and the math that requires both.',
+      p3: 'Split-key architecture is the most practical quantum-resistant approach available today. No special hardware required. No exotic cryptography. Just two independent keys and the math that requires both.',
       handwritten: 'Crack one key. Get nothing.',
     },
     gettingStarted: {
       badge: 'Getting Started', title: 'Up and Running in Under 60 Seconds',
-      p1: 'Creating a Qoin takes three steps: generate two independent keys locally in your browser, fund the new Qoin address with a small amount of SOL for the activation fee, and activate the Qonjoint protection on-chain. That is it. No account. No KYC. No server.',
+      p1: 'Creating a Qoin takes two steps: generate two independent keys locally in your browser, then activate the Qonjoint protection on-chain. BITQ covers all gas fees during beta, no SOL needed. No account. No KYC. No server.',
       handwritten: 'Your keys. Your tokens. Your math.',
     },
     protocol: {
@@ -233,6 +237,7 @@ const en: Translations = {
     },
     liveBalance: {
       badge: 'Live Balance', title: 'Real Tokens. Real Blockchain. No Middleware.',
+      subtitle: 'Live from Solana. No server. No middleware.',
       body: 'The balance shown below is fetched directly from the Solana blockchain via RPC. No server. No caching. No middleware. Your browser talks directly to the blockchain and reads what is there. This is how Qoin works for your own wallet too.',
     },
     faqPage: {
@@ -240,7 +245,7 @@ const en: Translations = {
       subtitle: 'Everything you need to know about Qoin, Qonjoint protection, and how it all works.',
     },
   },
-  common: { backHome: 'Back to Home', darkMode: 'Dark mode', lightMode: 'Light mode' },
+  common: { darkMode: 'Dark mode', lightMode: 'Light mode' },
 };
 
 const ja: Translations = {
@@ -286,6 +291,8 @@ const ja: Translations = {
     fetchingRpc: 'Solana RPCから取得中...',
     solBalance: 'SOL残高', holdings: 'bitQoin保有量', qoinjointLock: 'Qonjointロック',
     qoinAddress: 'Qoinアドレス:', verifyBtn: 'Orbで確認する', reloadBtn: '残高を更新',
+    copyKey: '鍵1をコピー', vaultLabel: 'ライブVault残高', loading: '読み込み中...', refresh: '更新',
+    viewExplorer: 'Solanaエクスプローラーで確認', noTokens: 'このVaultにはまだトークンがありません。',
   },
   how: {
     badge: '3ステップ', title: '60秒でウォレットをアップグレード',
@@ -311,7 +318,7 @@ const ja: Translations = {
       { q: '量子耐性はありますか？', a: '量子コンピューターが1つの秘密鍵を導出しても、何も動かせません。両方の鍵が必要です。1つの侵害では何も達成できません。' },
       { q: 'あなたたちはトークンにアクセスできますか？', a: 'いいえ。鍵はブラウザでローカルに生成され、サーバーに送信されることはありません。私たちはあなたの鍵にもトークンにもアクセスできません。' },
       { q: 'どのトークンを保護できますか？', a: 'Solana上のあらゆるSPLトークン。ミームコイン、ステーブルコイン、NFT、何でも。Solana上にあれば、Qoinで保持できます。' },
-      { q: '手数料はいくらですか？', a: 'Qoinの作成にはオンチェーン登録のための小額のSolanaネットワーク手数料が必要です。約0.003 SOL。送金には標準のSolanaトランザクション手数料がかかります。追加手数料はありません。' },
+      { q: 'ガス代は必要ですか？', a: 'いいえ。ベータ期間中、BITQが全ガス代を負担します。トランザクションのためのSOLは不要です。' },
       { q: 'モバイルで使えますか？', a: 'はい。アプリは完全にブラウザベースです。モダンブラウザを持つ任意のデバイスで動作します。' },
     ],
   },
@@ -321,7 +328,7 @@ const ja: Translations = {
     pk1Label: '鍵1 秘密鍵', pk2Label: '鍵2 秘密鍵',
     pk1Sub: 'ローカルで生成。送信されません。', pk2Sub: 'ローカルで生成。送信されません。',
     generateBtn: '両方の鍵を生成', activateBtn: 'Qonjoint保護を有効化', activating: '有効化中...',
-    fundNote: '有効化前にこのアドレスに少なくとも0.01 SOLを送金してください:',
+    fundNote: 'ガス代はBITQが負担, SOLは不要です。',
     successTitle: 'Qoin有効化完了。', successSub: 'QonjointウォレットがSolanaメインネットで稼動しています。',
     addressLabel: 'Qoinアドレス', txLabel: '有効化トランザクション', openBtn: 'Qoinを開く',
     warningTitle: '両方の鍵を安全に保管', warningBody: 'いずれかの鍵を失うと、トークンは永久にアクセス不能になります。各鍵を別々の安全な場所に保管してください。',
@@ -343,14 +350,14 @@ const ja: Translations = {
     problem: { badge: '単一鍵のリスク', title: 'ウォレットには1つの弱点があります', p1: '全ての暗号通貨ウォレットは同じように機能します。1つの秘密鍵が全てを支配します。失うか、フィッシングされたら終わりです。', p2: 'これは仮定の話ではありません。毎年数十億ドルが失われています。1つの鍵、1つの失敗、全損失。', p3: '既存のモデルは今日の人々が保管する価値の規模に対応するよう設計されていませんでした。Qoinはこの問題をプロトコルレベルで解決します。', handwritten: '1つの鍵。1つの失敗。ゲームオーバー。' },
     solution: { badge: 'Qoinの解決策', title: '2つの鍵。1つのプロトコル。妥協なし。', p1: 'QoinはSolanaのネイティブオンチェーンマルチシグを使用し、すべての取引に複数の独立した鍵を要求します。', p2: '鍵はブラウザでローカルに生成されます。サーバーには触れません。私たちには見えません。', p3: '中間に会社は存在しません。Solanaブロックチェーンによって強制される数学です。', handwritten: 'ソフトウェア保護ではなく、プロトコル保護。' },
     quantum: { badge: '量子の脅威', title: '量子コンピューターが単一鍵を狙っています', p1: 'ショアのアルゴリズムを実行する量子コンピューターは公開鍵から秘密鍵を導出できます。これはSFではありません。', p2: 'Qonjoint保護により、1つの鍵が侵害されても何も達成できません。両方の鍵が同時に必要です。', p3: '分割鍵アーキテクチャは、Solana上で現在利用可能な最も実用的な量子耐性アプローチです。', handwritten: '1つの鍵を解読しても、何も得られない。' },
-    gettingStarted: { badge: 'はじめに', title: '60秒以内に起動', p1: 'Qoinの作成は3ステップです。ブラウザでローカルに2つの独立した鍵を生成し、新しいQoinアドレスに少量のSOLを入金し、オンチェーンでQonjoint保護を有効化します。アカウント不要。KYC不要。サーバーなし。', handwritten: 'あなたの鍵。あなたのトークン。あなたの数学。' },
+    gettingStarted: { badge: 'はじめに', title: '60秒以内に起動', p1: 'Qoinの作成は2ステップです。ブラウザでローカルに2つの独立した鍵を生成し、オンチェーンでQonjoint保護を有効化します。ガス代はベータ期間中BITQが負担, SOL不要。アカウント不要。KYC不要。', handwritten: 'あなたの鍵。あなたのトークン。あなたの数学。' },
     protocol: { badge: 'Qonjointプロトコル', title: 'オンチェーン保護の仕組み', p1: 'QonjointはSolanaのネイティブSPLマルチシグプログラムを使用します。Qoinを作成すると、2つの公開鍵がオンチェーンにウォレットの共同コントローラーとして登録されます。', p2: 'この強制はプロトコルレベルで発生します。フロントエンドが完全に侵害または停止されても、トークンを動かすには両方の鍵が必要です。', handwritten: 'オンチェーン。検証可能。永続的。' },
     keyManagement: { badge: '鍵の管理', title: 'Qonjoint鍵の保管方法', p1: 'Qoinのセキュリティはどこに鍵を保管するかにすべて依存します。鍵1と鍵2は別々の物理的な場所に保管する必要があります。', p2: '推奨：各鍵を紙に書き、別々の安全な場所に保管。同じ場所に両方を保管しないことが唯一のルールです。', handwritten: '2つの鍵。2つの場所。絶対に一緒にしない。' },
     hackChallenge: { badge: 'ハックチャレンジ', title: '私たちの鍵を公開しました。試してください。', body: '私たちは概念実証として鍵1を公開しました。コピーして、インポートして、署名することができます。しかし1トークンも動かせません。鍵2が必要です。' },
-    liveBalance: { badge: 'ライブ残高', title: 'リアルトークン。リアルブロックチェーン。ミドルウェアなし。', body: '以下の残高はRPC経由でSolanaブロックチェーンから直接取得されます。サーバーなし。キャッシュなし。ミドルウェアなし。' },
+    liveBalance: { badge: 'ライブ残高', title: 'リアルトークン。リアルブロックチェーン。ミドルウェアなし。', subtitle: 'Solanaから直接。サーバーなし。ミドルウェアなし。', body: '以下の残高はRPC経由でSolanaブロックチェーンから直接取得されます。サーバーなし。キャッシュなし。ミドルウェアなし。' },
     faqPage: { badge: 'よくある質問', title: 'よくある質問', subtitle: 'Qoin、Qonjoint保護、およびその仕組みについて知る必要があることすべて。' },
   },
-  common: { backHome: 'ホームに戻る', darkMode: 'ダークモード', lightMode: 'ライトモード' },
+  common: { darkMode: 'ダークモード', lightMode: 'ライトモード' },
 };
 
 const zh: Translations = {
@@ -396,6 +403,8 @@ const zh: Translations = {
     fetchingRpc: '从Solana RPC获取中...',
     solBalance: 'SOL余额', holdings: 'bitQoin持仓', qoinjointLock: 'Qonjoint锁定',
     qoinAddress: 'Qoin地址:', verifyBtn: '在Orb上自行验证', reloadBtn: '重新加载余额',
+    copyKey: '复制密钥1', vaultLabel: '实时Vault余额', loading: '加载中...', refresh: '刷新',
+    viewExplorer: '在Solana浏览器中查看', noTokens: '此Vault中尚无代币。',
   },
   how: {
     badge: '三个步骤', title: '60秒内升级您的钱包',
@@ -421,7 +430,7 @@ const zh: Translations = {
       { q: '这是量子防护的吗？', a: '即使量子计算机推导出一个私钥，也无法移动任何东西。两把密钥都必须签名。一把被攻破的密钥什么都做不到。' },
       { q: '你们能访问我的代币吗？', a: '不能。密钥在您的浏览器中本地生成，从不传输到任何服务器。我们无法访问您的密钥或代币。零。' },
       { q: '我可以保护哪些代币？', a: 'Solana上的任何SPL代币。Meme币、稳定币、NFT，任何东西。只要它在Solana上，就可以在Qoin中持有。' },
-      { q: '手续费是多少？', a: '创建Qoin需要小额Solana网络费用来在链上注册保护。约0.003 SOL。发送代币收取标准Solana交易费用。我们不收取额外费用。' },
+      { q: '需要SOL支付Gas费吗？', a: '不需要。BITQ在测试期间承担所有Gas费用。无需持有SOL即可免费创建和使用Qoin。' },
       { q: '可以在手机上使用吗？', a: '可以。该应用完全基于浏览器。任何具有现代浏览器的设备都可以使用。' },
     ],
   },
@@ -431,7 +440,7 @@ const zh: Translations = {
     pk1Label: '密钥1 私钥', pk2Label: '密钥2 私钥',
     pk1Sub: '本地生成。从不传输。', pk2Sub: '本地生成。从不传输。',
     generateBtn: '生成两把密钥', activateBtn: '激活Qonjoint保护', activating: '激活中...',
-    fundNote: '激活前请向此地址充值至少0.01 SOL:',
+    fundNote: 'Gas费由BITQ承担, 无需您持有SOL。',
     successTitle: 'Qoin已激活。', successSub: '您的Qonjoint钱包已在Solana主网上线。',
     addressLabel: 'Qoin地址', txLabel: '激活交易', openBtn: '打开您的Qoin',
     warningTitle: '安全保存两把密钥', warningBody: '如果您丢失任何一把密钥，您的代币将永久无法访问。将每把密钥存储在单独的安全位置。',
@@ -453,14 +462,14 @@ const zh: Translations = {
     problem: { badge: '单密钥风险', title: '您的钱包有一个故障点', p1: '每个加密货币钱包都以相同方式工作：一个私钥控制一切。丢失它就完了。', p2: '这不是假设。每年数十亿美元因私钥被盗而损失。一把密钥，一次失败，全部损失。', p3: '现有模型从未设计用于今天人们存储的价值规模。Qoin在协议层面解决了这个问题。', handwritten: '一把密钥。一次失败。游戏结束。' },
     solution: { badge: 'Qoin解决方案', title: '两把密钥。一个协议。零妥协。', p1: 'Qoin使用Solana的原生链上多签，要求每笔交易有多个独立密钥。', p2: '您的密钥在浏览器中本地生成。它们从不接触服务器。我们永远看不到它们。', p3: '中间没有公司。这是由Solana区块链强制执行的数学。', handwritten: '不是软件保护。是协议保护。' },
     quantum: { badge: '量子威胁', title: '量子计算机正在瞄准单密钥', p1: '运行Shor算法的量子计算机可以从公钥推导出私钥。这不是科幻小说。', p2: '通过Qonjoint保护，攻击一把密钥什么都得不到。需要同时攻破两把密钥。', p3: '分割密钥架构是目前Solana上最实用的量子抗性方法。', handwritten: '破解一把密钥。一无所获。' },
-    gettingStarted: { badge: '入门指南', title: '60秒内启动运行', p1: '创建Qoin需要三个步骤：在浏览器中本地生成两个独立密钥，向新Qoin地址充值少量SOL作为激活费，在链上激活Qonjoint保护。无需账户。无需KYC。无服务器。', handwritten: '您的密钥。您的代币。您的数学。' },
+    gettingStarted: { badge: '入门指南', title: '60秒内启动运行', p1: '创建Qoin只需两步：在浏览器中本地生成两个独立密钥，然后在链上激活Qonjoint保护。BITQ在测试期间承担所有Gas费用, 无需SOL。无需账户。无需KYC。', handwritten: '您的密钥。您的代币。您的数学。' },
     protocol: { badge: 'Qonjoint协议', title: '链上保护如何运作', p1: 'Qonjoint使用Solana的原生SPL多签程序。当您创建Qoin时，两个公钥被注册为钱包的共同控制者。', p2: '这种强制在协议层面发生。即使我们的前端被完全攻破，您的代币仍需要两把密钥才能移动。', handwritten: '链上。可验证。永久。' },
     keyManagement: { badge: '密钥管理', title: '如何存储您的Qonjoint密钥', p1: 'Qoin的安全性完全取决于您在哪里存储密钥。密钥1和密钥2必须存储在不同的物理位置。', p2: '建议：将每把密钥写在纸上并存储在不同的安全位置。永远不要在同一个地方存储两把密钥。', handwritten: '两把密钥。两个地方。永不在一起。' },
     hackChallenge: { badge: '黑客挑战', title: '我们公开了其中一把密钥。来试试吧。', body: '我们公开发布了密钥1作为概念验证。您可以复制、导入、用它签名。但仍然无法移动任何代币。需要密钥2。' },
-    liveBalance: { badge: '实时余额', title: '真实代币。真实区块链。无中间件。', body: '以下余额直接通过RPC从Solana区块链获取。无服务器。无缓存。无中间件。' },
+    liveBalance: { badge: '实时余额', title: '真实代币。真实区块链。无中间件。', subtitle: '直接来自Solana。无服务器。无中间件。', body: '以下余额直接通过RPC从Solana区块链获取。无服务器。无缓存。无中间件。' },
     faqPage: { badge: '常见问题', title: '常见问题', subtitle: '关于Qoin、Qonjoint保护及其工作原理的一切您需要知道的信息。' },
   },
-  common: { backHome: '返回首页', darkMode: '深色模式', lightMode: '浅色模式' },
+  common: { darkMode: '深色模式', lightMode: '浅色模式' },
 };
 
 const de: Translations = {
@@ -506,6 +515,8 @@ const de: Translations = {
     fetchingRpc: 'Abrufen von Solana RPC...',
     solBalance: 'SOL-Guthaben', holdings: 'bitQoin-Bestand', qoinjointLock: 'Qonjoint-Sperre',
     qoinAddress: 'Qoin-Adresse:', verifyBtn: 'Selbst auf Orb verifizieren', reloadBtn: 'Guthaben laden',
+    copyKey: 'Schlüssel 1 kopieren', vaultLabel: 'Live-Vault-Guthaben', loading: 'Wird geladen...', refresh: 'Aktualisieren',
+    viewExplorer: 'Im Solana Explorer anzeigen', noTokens: 'Noch keine Token in diesem Vault.',
   },
   how: {
     badge: 'Drei Schritte', title: 'Wallet in 60 Sekunden upgraden',
@@ -531,7 +542,7 @@ const de: Translations = {
       { q: 'Ist das quantensicher?', a: 'Selbst wenn ein Quantencomputer einen privaten Schlüssel ableitet, kann er nichts bewegen. Beide Schlüssel müssen signieren. Ein kompromittierter Schlüssel erreicht nichts.' },
       { q: 'Habt ihr Zugriff auf meine Tokens?', a: 'Nein. Schlüssel werden lokal in deinem Browser generiert und nie an einen Server übertragen. Wir haben keinen Zugriff auf deine Schlüssel oder Tokens. Null.' },
       { q: 'Welche Tokens kann ich schützen?', a: 'Jeden SPL-Token auf Solana. Memecoins, Stablecoins, NFTs, alles. Wenn es auf Solana lebt, kann es in einem Qoin gehalten werden.' },
-      { q: 'Wie hoch sind die Gebühren?', a: 'Die Erstellung eines Qoin erfordert eine kleine Solana-Netzwerkgebühr von etwa 0,003 SOL. Das Senden von Tokens kostet die Standard-Solana-Transaktionsgebühr. Keine zusätzlichen Gebühren von uns.' },
+      { q: 'Brauche ich SOL für Gasgebühren?', a: 'Nein. BITQ übernimmt alle Gasgebühren während der Beta. Erstelle und nutze deinen Qoin kostenlos, kein SOL für Transaktionen nötig.' },
       { q: 'Kann ich es auf dem Handy nutzen?', a: 'Ja. Die App ist vollständig browserbasiert. Jedes Gerät mit einem modernen Browser funktioniert.' },
     ],
   },
@@ -541,7 +552,7 @@ const de: Translations = {
     pk1Label: 'SCHLÜSSEL 1 PRIVATER SCHLÜSSEL', pk2Label: 'SCHLÜSSEL 2 PRIVATER SCHLÜSSEL',
     pk1Sub: 'Lokal generiert. Nie übertragen.', pk2Sub: 'Lokal generiert. Nie übertragen.',
     generateBtn: 'Beide Schlüssel generieren', activateBtn: 'Qonjoint-Schutz aktivieren', activating: 'Aktivierung...',
-    fundNote: 'Lade diese Adresse mit mindestens 0,01 SOL auf bevor du aktivierst:',
+    fundNote: 'Gasgebühren von BITQ übernommen, kein SOL nötig.',
     successTitle: 'Qoin aktiviert.', successSub: 'Deine Qonjoint-Wallet ist live auf Solana Mainnet.',
     addressLabel: 'Qoin-Adresse', txLabel: 'Aktivierungstransaktion', openBtn: 'Dein Qoin öffnen',
     warningTitle: 'Beide Schlüssel sicher aufbewahren', warningBody: 'Wenn du einen Schlüssel verlierst, sind deine Tokens permanent unzugänglich.',
@@ -563,14 +574,14 @@ const de: Translations = {
     problem: { badge: 'Einzelschlüssel-Risiko', title: 'Deine Wallet hat einen Ausfallpunkt', p1: 'Jede Krypto-Wallet funktioniert gleich: ein privater Schlüssel kontrolliert alles. Verliere ihn und das war es.', p2: 'Das ist nicht hypothetisch. Jedes Jahr gehen Milliarden durch Schlüsseldiebstahl verloren.', p3: 'Das bestehende Modell war nie für die Wertskala von heute ausgelegt. Qoin löst das auf Protokollebene.', handwritten: 'Ein Schlüssel. Ein Fehler. Game over.' },
     solution: { badge: 'Die Qoin-Lösung', title: 'Zwei Schlüssel. Ein Protokoll. Kein Kompromiss.', p1: 'Qoin verwendet Solanas natives On-Chain-Multisig und erfordert mehrere unabhängige Schlüssel für jede Transaktion.', p2: 'Deine Schlüssel werden lokal in deinem Browser generiert. Sie berühren nie einen Server.', p3: 'Kein Unternehmen dazwischen. Es ist Mathematik, durchgesetzt von der Solana-Blockchain.', handwritten: 'Kein Software-Schutz. Protokoll-Schutz.' },
     quantum: { badge: 'Quantenbedrohung', title: 'Quantencomputer haben Einzelschlüssel im Visier', p1: 'Quantencomputer mit Shors Algorithmus können private Schlüssel ableiten. Das ist keine Science-Fiction.', p2: 'Mit Qonjoint-Schutz erreicht das Kompromittieren eines Schlüssels nichts. Beide müssen gleichzeitig geknackt werden.', p3: 'Split-Key-Architektur ist der praktischste quantenresistente Ansatz auf Solana.', handwritten: 'Einen Schlüssel knacken. Nichts bekommen.' },
-    gettingStarted: { badge: 'Erste Schritte', title: 'In unter 60 Sekunden einsatzbereit', p1: 'Die Erstellung eines Qoin erfordert drei Schritte: zwei unabhängige Schlüssel lokal generieren, die neue Qoin-Adresse mit etwas SOL aufladen und den Qonjoint-Schutz on-chain aktivieren.', handwritten: 'Deine Schlüssel. Deine Tokens. Deine Mathematik.' },
+    gettingStarted: { badge: 'Erste Schritte', title: 'In unter 60 Sekunden einsatzbereit', p1: 'Die Erstellung eines Qoin erfordert zwei Schritte: zwei unabhängige Schlüssel lokal im Browser generieren, dann den Qonjoint-Schutz on-chain aktivieren. BITQ übernimmt alle Gasgebühren während der Beta, kein SOL nötig. Kein Konto. Kein KYC.', handwritten: 'Deine Schlüssel. Deine Tokens. Deine Mathematik.' },
     protocol: { badge: 'Qonjoint-Protokoll', title: 'Wie der On-Chain-Schutz funktioniert', p1: 'Qonjoint verwendet Solanas natives SPL-Multisig-Programm. Beim Erstellen eines Qoin werden zwei öffentliche Schlüssel on-chain als gemeinsame Controller registriert.', p2: 'Diese Durchsetzung findet auf Protokollebene statt. Selbst wenn unser Frontend kompromittiert wird, bleiben deine Tokens sicher.', handwritten: 'On-chain. Verifizierbar. Permanent.' },
     keyManagement: { badge: 'Schlüsselverwaltung', title: 'Wie du deine Qonjoint-Schlüssel aufbewahrst', p1: 'Die Sicherheit deines Qoin hängt ganz davon ab, wo du deine Schlüssel aufbewahrst. Schlüssel 1 und Schlüssel 2 müssen an getrennten physischen Orten aufbewahrt werden.', p2: 'Empfohlen: Jeden Schlüssel auf Papier schreiben und an getrennten sicheren Orten aufbewahren. Niemals beide Schlüssel am selben Ort.', handwritten: 'Zwei Schlüssel. Zwei Orte. Niemals zusammen.' },
     hackChallenge: { badge: 'Hack-Challenge', title: 'Wir haben einen unserer Schlüssel veröffentlicht. Versuche es.', body: 'Wir haben Schlüssel 1 als Proof of Concept veröffentlicht. Du kannst ihn kopieren, importieren und damit signieren. Aber du kannst keinen einzigen Token bewegen. Schlüssel 2 ist erforderlich.' },
-    liveBalance: { badge: 'Live-Guthaben', title: 'Echte Tokens. Echte Blockchain. Keine Middleware.', body: 'Das unten gezeigte Guthaben wird direkt über RPC von der Solana-Blockchain abgerufen. Kein Server. Kein Cache. Keine Middleware.' },
+    liveBalance: { badge: 'Live-Guthaben', title: 'Echte Tokens. Echte Blockchain. Keine Middleware.', subtitle: 'Live von Solana. Kein Server. Keine Middleware.', body: 'Das unten gezeigte Guthaben wird direkt über RPC von der Solana-Blockchain abgerufen. Kein Server. Kein Cache. Keine Middleware.' },
     faqPage: { badge: 'Häufige Fragen', title: 'Häufig gestellte Fragen', subtitle: 'Alles, was du über Qoin, Qonjoint-Schutz und wie es funktioniert wissen musst.' },
   },
-  common: { backHome: 'Zurück zur Startseite', darkMode: 'Dunkelmodus', lightMode: 'Hellmodus' },
+  common: { darkMode: 'Dunkelmodus', lightMode: 'Hellmodus' },
 };
 
 const es: Translations = {
@@ -616,6 +627,8 @@ const es: Translations = {
     fetchingRpc: 'Obteniendo desde Solana RPC...',
     solBalance: 'Balance SOL', holdings: 'Tenencias bitQoin', qoinjointLock: 'Bloqueo Qonjoint',
     qoinAddress: 'Dirección Qoin:', verifyBtn: 'Verificar en Orb', reloadBtn: 'Recargar Balance',
+    copyKey: 'Copiar Clave 1', vaultLabel: 'Saldo Vault en Vivo', loading: 'Cargando...', refresh: 'Actualizar',
+    viewExplorer: 'Ver en Solana Explorer', noTokens: 'No hay tokens en este vault aún.',
   },
   how: {
     badge: 'Tres Pasos', title: 'Actualiza tu Wallet en 60 Segundos',
@@ -641,7 +654,7 @@ const es: Translations = {
       { q: '¿Es resistente al quantum?', a: 'Incluso si una computadora cuántica deriva una clave privada, no puede mover nada. Ambas claves deben firmar. Una clave comprometida no logra nada.' },
       { q: '¿Tienen acceso a mis tokens?', a: 'No. Las claves se generan localmente en tu navegador y nunca se transmiten a ningún servidor. No tenemos acceso a tus claves ni tokens. Cero.' },
       { q: '¿Qué tokens puedo proteger?', a: 'Cualquier token SPL en Solana. Memecoins, stablecoins, NFTs, cualquier cosa. Si vive en Solana, puede guardarse en un Qoin.' },
-      { q: '¿Cuáles son las comisiones?', a: 'Crear un Qoin requiere una pequeña tarifa de red Solana de alrededor de 0.003 SOL. Enviar tokens cuesta la tarifa estándar de transacción Solana. Sin comisiones adicionales.' },
+      { q: '¿Necesito SOL para las tarifas de gas?', a: 'No. BITQ cubre todas las tarifas de gas durante la beta. Crea y usa tu Qoin gratis, no necesitas SOL para las transacciones.' },
       { q: '¿Puedo usarlo en móvil?', a: 'Sí. La app es completamente basada en navegador. Cualquier dispositivo con un navegador moderno funciona.' },
     ],
   },
@@ -651,7 +664,7 @@ const es: Translations = {
     pk1Label: 'CLAVE 1 CLAVE PRIVADA', pk2Label: 'CLAVE 2 CLAVE PRIVADA',
     pk1Sub: 'Generada localmente. Nunca transmitida.', pk2Sub: 'Generada localmente. Nunca transmitida.',
     generateBtn: 'Generar Ambas Claves', activateBtn: 'Activar Protección Qonjoint', activating: 'Activando...',
-    fundNote: 'Fondea esta dirección con al menos 0.01 SOL antes de activar:',
+    fundNote: 'Tarifas de gas cubiertas por BITQ, no necesitas SOL.',
     successTitle: 'Qoin Activado.', successSub: 'Tu wallet Qonjoint está en vivo en Solana mainnet.',
     addressLabel: 'Dirección Qoin', txLabel: 'Transacción de Activación', openBtn: 'Abrir tu Qoin',
     warningTitle: 'Guarda Ambas Claves de Forma Segura', warningBody: 'Si pierdes alguna clave, tus tokens son permanentemente inaccesibles.',
@@ -673,14 +686,14 @@ const es: Translations = {
     problem: { badge: 'Riesgo de Clave Única', title: 'Tu Wallet Tiene un Único Punto de Falla', p1: 'Cada wallet de criptomonedas funciona igual: una clave privada controla todo. Piérdela y game over.', p2: 'No es hipotético. Miles de millones se pierden cada año por robo de claves.', p3: 'El modelo existente nunca fue diseñado para la escala de valor que la gente almacena hoy. Qoin resuelve esto a nivel de protocolo.', handwritten: 'Una clave. Un fallo. Game over.' },
     solution: { badge: 'La Solución Qoin', title: 'Dos Claves. Un Protocolo. Cero Compromisos.', p1: 'Qoin usa el protocolo Qonjoint para requerir múltiples claves independientes en cada transacción.', p2: 'Tus claves se generan localmente en tu navegador. Nunca tocan un servidor.', p3: 'No hay empresa en el medio. Es matemática, aplicada por la blockchain de Solana.', handwritten: 'No es protección de software. Es protección de protocolo.' },
     quantum: { badge: 'Amenaza Cuántica', title: 'Las Computadoras Cuánticas van por las Claves Únicas', p1: 'Las computadoras cuánticas con el Algoritmo de Shor pueden derivar claves privadas. Esto no es ciencia ficción.', p2: 'Con la protección Qonjoint, comprometer una clave no logra nada. Se necesitan ambas simultáneamente.', p3: 'La arquitectura de clave dividida es el enfoque más práctico disponible en Solana hoy.', handwritten: 'Romper una clave. No obtener nada.' },
-    gettingStarted: { badge: 'Primeros Pasos', title: 'En Marcha en Menos de 60 Segundos', p1: 'Crear un Qoin requiere tres pasos: generar dos claves independientes localmente, fondear la nueva dirección Qoin con algo de SOL, y activar la protección Qonjoint on-chain. Sin cuenta. Sin KYC. Sin servidor.', handwritten: 'Tus claves. Tus tokens. Tus matemáticas.' },
+    gettingStarted: { badge: 'Primeros Pasos', title: 'En Marcha en Menos de 60 Segundos', p1: 'Crear un Qoin requiere dos pasos: generar dos claves independientes localmente en tu navegador, luego activar la protección Qonjoint on-chain. BITQ cubre todas las tarifas de gas durante la beta, sin SOL necesario. Sin cuenta. Sin KYC. Sin servidor.', handwritten: 'Tus claves. Tus tokens. Tus matemáticas.' },
     protocol: { badge: 'Protocolo Qonjoint', title: 'Cómo Funciona la Protección On-Chain', p1: 'Qonjoint usa el protocolo nativo de Solana. Al crear un Qoin, dos claves públicas se registran como controladores conjuntos de tu wallet.', p2: 'Esta aplicación ocurre a nivel de protocolo. Incluso si nuestro frontend fuera comprometido, tus tokens aún requieren ambas claves para moverse.', handwritten: 'On-chain. Verificable. Permanente.' },
     keyManagement: { badge: 'Gestión de Claves', title: 'Cómo Guardar tus Claves Qonjoint', p1: 'La seguridad de tu Qoin depende completamente de dónde guardes tus claves. La Clave 1 y la Clave 2 deben guardarse en ubicaciones físicas separadas.', p2: 'Recomendado: escribe cada clave en papel y guárdala en ubicaciones seguras separadas. Nunca guardes ambas claves en el mismo lugar.', handwritten: 'Dos claves. Dos lugares. Nunca juntas.' },
     hackChallenge: { badge: 'Desafío de Hackeo', title: 'Publicamos una de nuestras claves. Inténtalo.', body: 'Publicamos la Clave 1 como prueba de concepto. Puedes copiarla, importarla, firmar con ella. Aún no puedes mover un solo token. Se requiere la Clave 2.' },
-    liveBalance: { badge: 'Balance en Vivo', title: 'Tokens Reales. Blockchain Real. Sin Middleware.', body: 'El balance mostrado abajo se obtiene directamente de la blockchain de Solana via RPC. Sin servidor. Sin caché. Sin middleware.' },
+    liveBalance: { badge: 'Balance en Vivo', title: 'Tokens Reales. Blockchain Real. Sin Middleware.', subtitle: 'En vivo desde Solana. Sin servidor. Sin middleware.', body: 'El balance mostrado abajo se obtiene directamente de la blockchain de Solana via RPC. Sin servidor. Sin caché. Sin middleware.' },
     faqPage: { badge: 'Preguntas Frecuentes', title: 'Preguntas Frecuentes', subtitle: 'Todo lo que necesitas saber sobre Qoin, la protección Qonjoint y cómo funciona.' },
   },
-  common: { backHome: 'Volver al inicio', darkMode: 'Modo oscuro', lightMode: 'Modo claro' },
+  common: { darkMode: 'Modo oscuro', lightMode: 'Modo claro' },
 };
 
 const ar: Translations = {
@@ -726,6 +739,8 @@ const ar: Translations = {
     fetchingRpc: 'جارٍ الجلب من Solana RPC...',
     solBalance: 'رصيد SOL', holdings: 'حيازات bitQoin', qoinjointLock: 'قفل Qonjoint',
     qoinAddress: 'عنوان Qoin:', verifyBtn: 'تحقق بنفسك على Orb', reloadBtn: 'إعادة تحميل الرصيد',
+    copyKey: 'نسخ المفتاح 1', vaultLabel: 'رصيد Vault المباشر', loading: 'جارٍ التحميل...', refresh: 'تحديث',
+    viewExplorer: 'عرض في Solana Explorer', noTokens: 'لا توجد رموز في هذا الـ Vault بعد.',
   },
   how: {
     badge: 'ثلاث خطوات', title: 'ترقية محفظتك في 60 ثانية',
@@ -751,7 +766,7 @@ const ar: Translations = {
       { q: 'هل هذا مقاوم للكم؟', a: 'حتى لو اشتق كمبيوتر كمي مفتاحا خاصا، لا يمكنه نقل أي شيء. كلا المفتاحين يجب أن يوقعا. مفتاح واحد مخترق لا يحقق شيئا.' },
       { q: 'هل لديكم وصول إلى رموزي؟', a: 'لا. المفاتيح تُولد محليا في متصفحك ولا تُرسل أبدا إلى أي خادم. ليس لدينا وصول إلى مفاتيحك أو رموزك. صفر.' },
       { q: 'ما الرموز التي يمكنني حمايتها؟', a: 'أي رمز SPL على Solana. عملات الميم، العملات المستقرة، NFTs، أي شيء. إذا كان يعيش على Solana، يمكن الاحتفاظ به في Qoin.' },
-      { q: 'ما هي الرسوم؟', a: 'إنشاء Qoin يتطلب رسوم شبكة Solana صغيرة حوالي 0.003 SOL. إرسال الرموز يكلف رسوم معاملة Solana القياسية. لا رسوم إضافية منا.' },
+      { q: 'هل أحتاج SOL لرسوم الغاز؟', a: 'لا. BITQ يغطي جميع رسوم الغاز خلال الفترة التجريبية. أنشئ واستخدم Qoin مجانا, لا تحتاج SOL للمعاملات.' },
       { q: 'هل يمكنني استخدامه على الجوال؟', a: 'نعم. التطبيق مبني بالكامل على المتصفح. أي جهاز بمتصفح حديث يعمل.' },
     ],
   },
@@ -761,7 +776,7 @@ const ar: Translations = {
     pk1Label: 'المفتاح 1 المفتاح الخاص', pk2Label: 'المفتاح 2 المفتاح الخاص',
     pk1Sub: 'تم التوليد محليا. لا يُرسل أبدا.', pk2Sub: 'تم التوليد محليا. لا يُرسل أبدا.',
     generateBtn: 'توليد كلا المفتاحين', activateBtn: 'تفعيل حماية Qonjoint', activating: 'جارٍ التفعيل...',
-    fundNote: 'أضف على الأقل 0.01 SOL إلى هذا العنوان قبل التفعيل:',
+    fundNote: 'رسوم الغاز مغطاة من BITQ, لا تحتاج إلى SOL.',
     successTitle: 'تم تفعيل Qoin.', successSub: 'محفظة Qonjoint الخاصة بك مباشرة على شبكة Solana الرئيسية.',
     addressLabel: 'عنوان Qoin', txLabel: 'معاملة التفعيل', openBtn: 'فتح Qoin الخاص بك',
     warningTitle: 'خزن كلا المفتاحين بأمان', warningBody: 'إذا فقدت أي مفتاح، رموزك تصبح غير قابلة للوصول بشكل دائم.',
@@ -783,14 +798,14 @@ const ar: Translations = {
     problem: { badge: 'خطر المفتاح الواحد', title: 'محفظتك لديها نقطة فشل واحدة', p1: 'كل محفظة عملات مشفرة تعمل بنفس الطريقة: مفتاح خاص واحد يتحكم في كل شيء. فقده وانتهى الأمر.', p2: 'هذا ليس افتراضيا. مليارات تُفقد كل عام بسبب سرقة المفاتيح.', p3: 'النموذج الحالي لم يُصمم أبدا لحجم القيمة التي يخزنها الناس اليوم. Qoin يحل هذا على مستوى البروتوكول.', handwritten: 'مفتاح واحد. فشل واحد. انتهى الأمر.' },
     solution: { badge: 'حل Qoin', title: 'مفتاحان. بروتوكول واحد. صفر تنازلات.', p1: 'يستخدم Qoin البرنامج متعدد التوقيعات الأصلي على السلسلة من Solana لمطالبة مفاتيح مستقلة متعددة لكل معاملة.', p2: 'مفاتيحك تُولد محليا في متصفحك. لا تلمس خادما أبدا.', p3: 'لا توجد شركة في المنتصف. إنها رياضيات يُطبقها بلوكشين Solana.', handwritten: 'ليست حماية برمجية. حماية بروتوكول.' },
     quantum: { badge: 'التهديد الكمي', title: 'أجهزة الكمبيوتر الكمية تستهدف المفاتيح الواحدة', p1: 'يمكن لأجهزة الكمبيوتر الكمية التي تعمل بخوارزمية Shor اشتقاق المفاتيح الخاصة. هذا ليس خيال علمي.', p2: 'مع حماية Qonjoint، اختراق مفتاح واحد لا يحقق شيئا. يلزم اختراق كليهما في آن واحد.', p3: 'بنية المفتاح المقسم هي النهج الأكثر عملية المقاوم للكم المتاح على Solana اليوم.', handwritten: 'اكسر مفتاحا واحدا. لا تحصل على شيء.' },
-    gettingStarted: { badge: 'البداية', title: 'جاهز للعمل في أقل من 60 ثانية', p1: 'إنشاء Qoin يتطلب ثلاث خطوات: توليد مفتاحين مستقلين محليا، تمويل عنوان Qoin الجديد بقليل من SOL، وتفعيل حماية Qonjoint على السلسلة. بلا حساب. بلا KYC. بلا خادم.', handwritten: 'مفاتيحك. رموزك. رياضياتك.' },
+    gettingStarted: { badge: 'البداية', title: 'جاهز للعمل في أقل من 60 ثانية', p1: 'إنشاء Qoin يتطلب خطوتين: توليد مفتاحين مستقلين محليا في متصفحك، ثم تفعيل حماية Qonjoint على السلسلة. BITQ يغطي جميع رسوم الغاز خلال البيتا, لا SOL مطلوب. بلا حساب. بلا KYC. بلا خادم.', handwritten: 'مفاتيحك. رموزك. رياضياتك.' },
     protocol: { badge: 'بروتوكول Qonjoint', title: 'كيف تعمل الحماية على السلسلة', p1: 'يستخدم Qonjoint برنامج SPL متعدد التوقيعات الأصلي من Solana. عند إنشاء Qoin، يُسجل مفتاحان عاميان كمتحكمين مشتركين في محفظتك.', p2: 'هذا التطبيق يحدث على مستوى البروتوكول. حتى لو تعرضت واجهتنا للاختراق، رموزك تتطلب كلا المفتاحين للتحرك.', handwritten: 'على السلسلة. قابل للتحقق. دائم.' },
     keyManagement: { badge: 'إدارة المفاتيح', title: 'كيف تخزن مفاتيح Qonjoint الخاصة بك', p1: 'أمان Qoin الخاص بك يعتمد كليا على أين تخزن مفاتيحك. المفتاح 1 والمفتاح 2 يجب تخزينهما في مواقع مادية منفصلة.', p2: 'الموصى به: اكتب كل مفتاح على ورقة وخزنه في مواقع آمنة منفصلة. لا تخزن كلا المفتاحين في نفس المكان أبدا.', handwritten: 'مفتاحان. مكانان. لا معا أبدا.' },
     hackChallenge: { badge: 'تحدي الاختراق', title: 'نشرنا أحد مفاتيحنا. جربه.', body: 'نشرنا المفتاح 1 كإثبات مفهوم. يمكنك نسخه واستيراده والتوقيع به. لا يمكنك نقل رمز واحد. المفتاح 2 مطلوب.' },
-    liveBalance: { badge: 'الرصيد المباشر', title: 'رموز حقيقية. بلوكشين حقيقي. بلا وسيط.', body: 'الرصيد المعروض أدناه يُجلب مباشرة من بلوكشين Solana عبر RPC. لا خادم. لا ذاكرة تخزين مؤقت. لا وسيط.' },
+    liveBalance: { badge: 'الرصيد المباشر', title: 'رموز حقيقية. بلوكشين حقيقي. بلا وسيط.', subtitle: 'مباشر من Solana. بلا خادم. بلا وسيط.', body: 'الرصيد المعروض أدناه يُجلب مباشرة من بلوكشين Solana عبر RPC. لا خادم. لا ذاكرة تخزين مؤقت. لا وسيط.' },
     faqPage: { badge: 'أسئلة شائعة', title: 'الأسئلة الشائعة', subtitle: 'كل ما تحتاج معرفته عن Qoin وحماية Qonjoint وكيفية عملها.' },
   },
-  common: { backHome: 'العودة إلى الرئيسية', darkMode: 'الوضع الداكن', lightMode: 'الوضع الفاتح' },
+  common: { darkMode: 'الوضع الداكن', lightMode: 'الوضع الفاتح' },
 };
 
 export const translations: Record<Language, Translations> = { en, ja, zh, de, es, ar };
