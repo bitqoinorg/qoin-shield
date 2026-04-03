@@ -124,7 +124,7 @@ export default function Faq() {
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <p className={`font-body font-bold text-base leading-relaxed mb-4 ${muted}`}>
-                bitQoin is an open-source project. If you have a question that is not covered here, the best place to look is the source code itself, or to raise it in the community on X or GitHub.
+                bitQoin is an open-source project. If you have a question that is not covered here, the best place to look is the source code itself, or to raise it in the community on GitHub.
               </p>
               <p className={`font-body font-bold text-base leading-relaxed ${muted}`}>
                 For security disclosures, please use the GitHub repository's security advisory system rather than posting publicly. We take all reports seriously and will respond promptly.
@@ -133,7 +133,6 @@ export default function Faq() {
             <div className="space-y-3">
               {[
                 { label: "GitHub", desc: "Source code, issues, and security advisories", href: "https://github.com/bitqoinorg" },
-                { label: "X (Twitter)", desc: "Updates, announcements, and community discussion", href: "https://x.com/bitqoinorg" },
               ].map((link) => (
                 <a
                   key={link.label}
