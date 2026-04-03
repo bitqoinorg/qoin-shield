@@ -38,7 +38,7 @@ export default function Faq() {
 
   const quickAnswers = [
     { q: "Is this custodial?", a: "No. Your keys never leave your device. bitQoin never holds or sees your private keys." },
-    { q: "What chain does this use?", a: "Solana mainnet. The Qonjoint protocol enforces dual-key signing." },
+    { q: "What chains does this support?", a: "Solana mainnet and Ethereum mainnet. The Qonjoint protocol enforces dual-key signing on both." },
     { q: "Can I recover a lost key?", a: "No. There is no recovery mechanism. Both keys must be backed up securely by you." },
     { q: "Is there an app or extension?", a: "No installation needed. Everything runs in your browser. No extension, no app." },
     { q: "What does 'Qonjoint' mean?", a: "It is the brand name for bitQoin's dual-key vault protocol. Joint control, enforced on-chain." },
