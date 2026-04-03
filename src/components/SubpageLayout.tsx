@@ -85,17 +85,7 @@ export default function SubpageLayout({
             ? <div className="w-full h-full" style={{ opacity: 0.45 }}>{heroDecor}</div>
             : <NetworkDecor opacity={0.45} />}
         </div>
-        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-20">
-          <button
-            onClick={() => navigate("/")}
-            className="font-body font-bold text-sm mb-8 flex items-center gap-2 text-white/40 hover:text-[#F7931A] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            {t.common.backHome}
-          </button>
-
+        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-0">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-10">
             <div className="flex-1">
               <div className="inline-block border border-[#F7931A]/60 text-[#F7931A] font-handwritten text-sm px-3 py-1 mb-5 uppercase tracking-widest">
@@ -112,24 +102,24 @@ export default function SubpageLayout({
         </div>
 
         {/* Mountain transition out of hero */}
-        <div className="relative h-12 -mb-px overflow-hidden" style={{ background: dark ? "#0f0f0f" : "#FAFAF5" }}>
-          <svg viewBox="0 0 1440 48" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" height="48" fill="#1a1a1a">
-            <path d="M0,48 L0,34 C120,14 200,42 360,24 C520,6 600,38 760,20 C920,2 1020,36 1180,18 C1340,0 1400,30 1440,16 L1440,48 Z"/>
+        <div className="relative h-20 -mb-px overflow-hidden" style={{ background: dark ? "#0f0f0f" : "#FAFAF5" }}>
+          <svg viewBox="0 0 1440 80" preserveAspectRatio="none" className="absolute top-0 left-0 w-full" height="80" fill="#1a1a1a">
+            <path d="M0,0 L0,30 C120,80 200,20 360,50 C520,80 600,10 760,60 C920,10 1020,70 1180,30 C1340,80 1400,20 1440,50 L1440,0 Z"/>
           </svg>
         </div>
       </section>
 
       {/* MAIN CONTENT adaptive */}
-      <section className="max-w-7xl mx-auto px-6 py-16">
+      <section className="max-w-7xl mx-auto px-6 py-20 md:py-28">
         {children}
       </section>
 
       {/* DARK SECTION */}
       <section className="bg-[#1a1a1a] relative overflow-hidden">
         {/* Mountain into dark */}
-        <div className="relative h-10 -mt-px overflow-hidden" style={{ background: dark ? "#0f0f0f" : "#FAFAF5" }}>
-          <svg viewBox="0 0 1440 40" preserveAspectRatio="none" className="absolute top-0 left-0 w-full" height="40" fill="#1a1a1a">
-            <path d="M0,0 L0,14 C100,34 220,6 380,24 C540,42 640,10 800,28 C960,46 1080,14 1240,32 C1380,46 1420,22 1440,30 L1440,0 Z"/>
+        <div className="relative h-20 -mt-px overflow-hidden" style={{ background: dark ? "#0f0f0f" : "#FAFAF5" }}>
+          <svg viewBox="0 0 1440 80" preserveAspectRatio="none" className="absolute bottom-0 left-0 w-full" height="80" fill="#1a1a1a">
+            <path d="M0,80 L0,50 C100,0 220,70 380,30 C540,0 640,60 800,20 C960,70 1080,10 1240,50 C1380,10 1420,60 1440,30 L1440,80 Z"/>
           </svg>
         </div>
 
@@ -137,7 +127,7 @@ export default function SubpageLayout({
           <NetworkDecor opacity={0.3} />
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-16">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-24">
           {/* Quote */}
           <div className="border-l-4 border-[#F7931A] pl-6 mb-12">
             <p className="font-handwritten text-3xl text-white/80">{quote}</p>
@@ -176,7 +166,7 @@ export default function SubpageLayout({
         <div className="border-t border-white/5 mt-4">
           <div className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between">
             <span className="font-handwritten text-white/25 text-base">bitQoin</span>
-            <span className="font-handwritten text-white/20 text-sm">Built on Solana</span>
+            <span className="font-handwritten text-white/20 text-sm">Solana + Ethereum</span>
           </div>
         </div>
       </section>
