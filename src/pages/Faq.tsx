@@ -81,7 +81,7 @@ export default function Faq() {
       ]}
     >
       <div className="space-y-10">
-        <p className={`font-body font-bold text-lg ${muted}`}>{t.subpages?.liveBalance?.subtitle ?? "Everything you need to know about bitQoin and the Qonjoint vault."}</p>
+        <p className={`font-body font-bold text-lg ${muted}`}>{t.subpages?.faqPage?.subtitle ?? "Everything you need to know about Qoin, Qonjoint protection, and how it all works."}</p>
 
         <div className="space-y-3">
           {faq.items.map((item, i) => (
