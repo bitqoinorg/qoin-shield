@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { saveQoinVault, findQoinVaultByKeys, findQoinVaultByAnyKey } from "../lib/db";
+import { logger } from "../lib/logger";
 import {
   Connection,
   Keypair,
@@ -151,8 +152,9 @@ router.post("/qoin/create", async (req, res) => {
     // Persist mapping permanently to database (public keys only, no private keys)
     try {
       await saveQoinVault(pk1PublicKey, pk2PublicKey, qoinAddress);
-    } catch {
-      // Non-fatal: DB save failure doesn't block the user
+      logger.info({ qoinAddress }, "qoin vault saved to db");
+    } catch (dbErr) {
+      logger.error({ err: dbErr }, "db save failed for new qoin vault");
     }
 
     res.json({ multisigAddress: qoinAddress, signature });
@@ -167,55 +169,100 @@ router.get("/qoin/balance", async (req, res) => {
     const { address } = req.query as { address: string };
     if (!address) { res.status(400).json({ error: "address required." }); return; }
     const apiKey = getHeliusApiKey();
+    const rpcUrl = `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
 
-    // Use Helius DAS getAssetsByOwner returns tokens + NFTs with metadata & logos
-    const dasRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: "balance",
-        method: "getAssetsByOwner",
-        params: {
-          ownerAddress: address,
-          page: 1,
-          limit: 1000,
-          displayOptions: { showFungible: true, showNativeBalance: true },
-        },
-      }),
-    });
-    const dasData = await dasRes.json() as {
-      result?: {
-        items: Array<{
-          interface: string;
-          id: string;
-          content?: { metadata?: { name?: string; symbol?: string }; links?: { image?: string } };
-          token_info?: { balance?: number; decimals?: number; associated_token_address?: string; price_info?: { price_per_token?: number; currency?: string } };
-        }>;
-        nativeBalance?: { lamports: number; price_per_sol?: number };
+    const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+    const TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
+    type ParsedTokenAccount = {
+      pubkey: string;
+      account: {
+        data: {
+          parsed: {
+            info: {
+              mint: string;
+              owner: string;
+              state: string;
+              tokenAmount: { amount: string; decimals: number; uiAmount: number | null };
+            };
+          };
+        };
       };
-      error?: { message: string };
     };
 
-    if (dasData.error) throw new Error(dasData.error.message);
-    const result = dasData.result!;
+    // Fetch token accounts from both programs + native SOL balance in parallel
+    const [tok1Res, tok2Res, solRes] = await Promise.all([
+      fetch(rpcUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "tok1", method: "getTokenAccountsByOwner", params: [address, { programId: TOKEN_PROGRAM }, { encoding: "jsonParsed" }] }),
+      }),
+      fetch(rpcUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "tok2", method: "getTokenAccountsByOwner", params: [address, { programId: TOKEN_2022_PROGRAM }, { encoding: "jsonParsed" }] }),
+      }),
+      fetch(rpcUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "sol", method: "getBalance", params: [address] }),
+      }),
+    ]);
 
-    const solBalance = (result.nativeBalance?.lamports ?? 0) / LAMPORTS_PER_SOL;
+    const [tok1Data, tok2Data, solData] = await Promise.all([
+      tok1Res.json() as Promise<{ result?: { value: ParsedTokenAccount[] } }>,
+      tok2Res.json() as Promise<{ result?: { value: ParsedTokenAccount[] } }>,
+      solRes.json() as Promise<{ result?: { value: number } }>,
+    ]);
 
-    const tokens = result.items
-      .filter((item) => item.token_info?.balance !== undefined && item.token_info.balance > 0)
-      .map((item) => ({
-        mint: item.id,
-        name: item.content?.metadata?.name ?? null,
-        symbol: item.content?.metadata?.symbol ?? null,
-        logo: item.content?.links?.image ?? null,
-        balance: (item.token_info!.balance ?? 0) / Math.pow(10, item.token_info!.decimals ?? 0),
-        rawBalance: item.token_info!.balance ?? 0,
-        decimals: item.token_info!.decimals ?? 0,
-        tokenAccount: item.token_info!.associated_token_address ?? "",
-        pricePerToken: item.token_info?.price_info?.price_per_token ?? null,
-        isNft: item.interface !== "FungibleToken" && item.interface !== "FungibleAsset",
-      }));
+    const solBalance = (solData.result?.value ?? 0) / LAMPORTS_PER_SOL;
+
+    // Merge both token program results, keep only positive balances
+    const allAccounts = [
+      ...(tok1Data.result?.value ?? []),
+      ...(tok2Data.result?.value ?? []),
+    ].filter((item) => (item.account.data.parsed.info.tokenAmount.uiAmount ?? 0) > 0);
+
+    if (allAccounts.length === 0) {
+      res.set("Cache-Control", "no-store");
+      res.json({ solBalance, tokens: [] });
+      return;
+    }
+
+    // Fetch metadata for all mints in one batch DAS call
+    const mints = allAccounts.map((item) => item.account.data.parsed.info.mint);
+
+    type AssetMeta = {
+      id: string;
+      content?: { metadata?: { name?: string; symbol?: string }; links?: { image?: string } };
+      token_info?: { price_info?: { price_per_token?: number } };
+    };
+
+    let assetMap = new Map<string, AssetMeta>();
+    try {
+      const batchRes = await fetch(rpcUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: "batch", method: "getAssetBatch", params: { ids: mints } }),
+      });
+      const batchData = await batchRes.json() as { result?: AssetMeta[] };
+      for (const asset of batchData.result ?? []) {
+        if (asset?.id) assetMap.set(asset.id, asset);
+      }
+    } catch { /* metadata is best-effort; proceed without it */ }
+
+    const tokens = allAccounts.map((item) => {
+      const info = item.account.data.parsed.info;
+      const meta = assetMap.get(info.mint);
+      return {
+        mint: info.mint,
+        name: meta?.content?.metadata?.name ?? null,
+        symbol: meta?.content?.metadata?.symbol ?? null,
+        logo: meta?.content?.links?.image ?? null,
+        balance: info.tokenAmount.uiAmount ?? 0,
+        rawBalance: parseInt(info.tokenAmount.amount, 10),
+        decimals: info.tokenAmount.decimals,
+        tokenAccount: item.pubkey,
+        pricePerToken: meta?.token_info?.price_info?.price_per_token ?? null,
+        isNft: false,
+      };
+    });
 
     res.set("Cache-Control", "no-store");
     res.json({ solBalance, tokens });
@@ -312,7 +359,7 @@ router.get("/qoin/find-vault", async (req, res) => {
         const signer = new PublicKey(data.slice(start, start + 32)).toBase58();
         if (signer === pk2.toBase58()) {
           results.push(pubkey.toBase58());
-          try { await saveQoinVault(key1, key2, pubkey.toBase58()); } catch { /* non-fatal */ }
+          try { await saveQoinVault(key1, key2, pubkey.toBase58()); logger.info({ qoinAddress: pubkey.toBase58() }, "qoin vault saved to db via find-vault"); } catch (dbErr) { logger.error({ err: dbErr }, "db save failed in find-vault"); }
           break;
         }
       }
