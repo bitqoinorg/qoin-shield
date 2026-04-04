@@ -39,15 +39,14 @@ function CheckSVG() {
 
 export default function GenerateVault() {
   const [, navigate] = useLocation();
-  const { t, dark, chain } = useApp();
+  const { t, dark, chain, setChain } = useApp();
   const stepLabels = [t.generate.step1, t.generate.step2, t.generate.step3, t.generate.step4];
   const {
-    phantomPubkey, solflarePubkey, phantom2Pubkey,
-    phantomConnecting, solflareConnecting, phantom2Connecting,
-    phantomError, solflareError, phantom2Error,
-    walletCombo, setWalletCombo,
-    connectPhantom, connectSolflare, connectPhantom2,
-    disconnectPhantom, disconnectSolflare, disconnectPhantom2,
+    phantomPubkey, phantom2Pubkey,
+    phantomConnecting, phantom2Connecting,
+    phantomError, phantom2Error,
+    connectPhantom, connectPhantom2,
+    disconnectPhantom, disconnectPhantom2,
   } = useWalletPair();
   const {
     evmAddress1, evmAddress2,
@@ -107,13 +106,12 @@ export default function GenerateVault() {
   }
 
   async function handleCreateWithWallets() {
-    const key2Pubkey = walletCombo === "phantom+phantom" ? phantom2Pubkey : solflarePubkey;
-    if (!phantomPubkey || !key2Pubkey) return;
-    if (walletCombo === "phantom+phantom" && phantomPubkey === key2Pubkey) {
+    if (!phantomPubkey || !phantom2Pubkey) return;
+    if (phantomPubkey === phantom2Pubkey) {
       setError("Key 1 and Key 2 must be different Phantom accounts.");
       return;
     }
-    await callCreateApi(phantomPubkey, key2Pubkey);
+    await callCreateApi(phantomPubkey, phantom2Pubkey);
   }
 
   async function handleCreateEvmVault() {
@@ -256,25 +254,63 @@ export default function GenerateVault() {
                 </div>
               </div>
 
-              {/* Cold Keys: original generate button */}
+              {/* Cold Keys: inline chain selector then action */}
               {createMode === "cold-keys" && (
-                chain === "evm" ? (
-                  <div className="border border-dashed border-[#F7931A]/40 rounded-sm px-4 py-5 text-center space-y-2 mb-4">
-                    <p className="font-sketch text-base text-[#1a1a1a]">EVM Vault Creation</p>
-                    <p className="font-handwritten text-sm text-[#1a1a1a]/50">
-                      EVM cold-key vaults are coming soon. Switch to Connect Wallets to create an EVM vault, or switch to Solana for cold-key creation.
-                    </p>
+                <div className="space-y-4 mb-4">
+                  <div>
+                    <p className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest mb-2">Chain</p>
+                    <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-sm font-body font-bold">
+                      <button
+                        onClick={() => setChain("evm")}
+                        className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                      >
+                        EVM
+                      </button>
+                      <button
+                        onClick={() => setChain("solana")}
+                        className={`flex-1 py-2.5 border-l-2 border-[#1a1a1a]/20 transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                      >
+                        Solana
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <button onClick={handleGenerateKeys} className="btn-sketch w-full text-xl py-5 mb-4">
-                    {t.generate.generateBtn}
-                  </button>
-                )
+                  {chain === "evm" ? (
+                    <div className="border border-dashed border-[#F7931A]/40 rounded-sm px-4 py-5 text-center space-y-2">
+                      <p className="font-sketch text-base text-[#1a1a1a]">EVM Cold Keys</p>
+                      <p className="font-handwritten text-sm text-[#1a1a1a]/50">
+                        EVM cold-key vaults are coming soon. Switch to Connect Wallets to create an EVM vault now.
+                      </p>
+                    </div>
+                  ) : (
+                    <button onClick={handleGenerateKeys} className="btn-sketch w-full text-xl py-5">
+                      {t.generate.generateBtn}
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Connect Wallets mode */}
               {createMode === "connect-wallets" && (
                 <div className="space-y-4 mb-4">
+
+                  {/* Inline chain selector: EVM left, Solana right */}
+                  <div>
+                    <p className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest mb-2">Chain</p>
+                    <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-sm font-body font-bold">
+                      <button
+                        onClick={() => setChain("evm")}
+                        className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                      >
+                        EVM
+                      </button>
+                      <button
+                        onClick={() => setChain("solana")}
+                        className={`flex-1 py-2.5 border-l-2 border-[#1a1a1a]/20 transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                      >
+                        Solana
+                      </button>
+                    </div>
+                  </div>
 
                   {/* EVM connect-wallets flow */}
                   {chain === "evm" ? (
@@ -362,32 +398,11 @@ export default function GenerateVault() {
                     </div>
                   ) : (
                     <>
-                      {/* Wallet combo selector */}
-                      <div>
-                        <p className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest mb-2">Wallet pair</p>
-                        <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-xs font-body font-bold">
-                          <button
-                            onClick={() => setWalletCombo("phantom+solflare")}
-                            className={`flex-1 py-2 transition-all ${walletCombo === "phantom+solflare" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
-                          >
-                            Phantom + Solflare
-                          </button>
-                          <button
-                            onClick={() => setWalletCombo("phantom+phantom")}
-                            className={`flex-1 py-2 border-l-2 border-[#1a1a1a]/20 transition-all ${walletCombo === "phantom+phantom" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
-                          >
-                            Dual Phantom
-                          </button>
-                        </div>
-                      </div>
-
                       <p className="font-handwritten text-sm text-[#1a1a1a]/40">
-                        {walletCombo === "phantom+phantom"
-                          ? "Connect Phantom as Key 1, switch accounts in the extension, then connect as Key 2."
-                          : "Connect Phantom as Key 1 and Solflare as Key 2. Their public keys register on-chain as Qonjoint signers."}
+                        Connect Phantom as Key 1, switch accounts in the extension, then connect as Key 2. Both public keys register on-chain as Qonjoint signers.
                       </p>
 
-                      {/* Key 1 — always Phantom */}
+                      {/* Key 1 — Phantom */}
                       <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
                         <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
                           <div className="flex items-center gap-2">
@@ -416,88 +431,51 @@ export default function GenerateVault() {
                         </div>
                       </div>
 
-                      {/* Key 2 — Solflare or Dual Phantom */}
-                      {walletCombo === "phantom+solflare" ? (
-                        <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                          <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
-                            <div className="flex items-center gap-2">
-                              <img src="/solflare-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: solflarePubkey ? 1 : 0.6 }} alt="Solflare" />
-                              <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Solflare)</span>
-                            </div>
-                            {solflarePubkey && (
-                              <span className="font-mono text-xs text-[#1a1a1a]/40">{solflarePubkey.slice(0, 6)}...{solflarePubkey.slice(-4)}</span>
-                            )}
+                      {/* Key 2 — Phantom (second account) */}
+                      <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+                          <div className="flex items-center gap-2">
+                            <img src="/phantom-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: phantom2Pubkey ? 1 : 0.6 }} alt="Phantom K2" />
+                            <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Phantom — switch account first)</span>
                           </div>
-                          <div className="px-4 py-3">
-                            {solflareError && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{solflareError}</p>}
-                            {solflarePubkey ? (
-                              <button onClick={disconnectSolflare} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
-                                Disconnect Solflare
-                              </button>
-                            ) : (
-                              <button
-                                onClick={connectSolflare}
-                                disabled={solflareConnecting}
-                                className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
-                              >
-                                {solflareConnecting ? "Connecting..." : "Connect Solflare"}
-                              </button>
-                            )}
-                          </div>
+                          {phantom2Pubkey && (
+                            <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
+                          )}
                         </div>
-                      ) : (
-                        <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                          <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
-                            <div className="flex items-center gap-2">
-                              <img src="/phantom-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: phantom2Pubkey ? 1 : 0.6 }} alt="Phantom K2" />
-                              <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Phantom — switch account first)</span>
-                            </div>
-                            {phantom2Pubkey && (
-                              <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
-                            )}
-                          </div>
-                          <div className="px-4 py-3">
-                            {phantom2Error && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantom2Error}</p>}
-                            {!phantomPubkey && <p className="font-handwritten text-xs text-[#1a1a1a]/30 mb-2">Connect Key 1 first.</p>}
-                            {phantom2Pubkey ? (
-                              <button onClick={disconnectPhantom2} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
-                                Disconnect Phantom (K2)
-                              </button>
-                            ) : (
-                              <button
-                                onClick={connectPhantom2}
-                                disabled={phantom2Connecting || !phantomPubkey}
-                                className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
-                              >
-                                {phantom2Connecting ? "Connecting..." : "Connect Phantom (Key 2)"}
-                              </button>
-                            )}
-                            {!phantom2Pubkey && phantomPubkey && (
-                              <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Switch to your second Phantom account in the extension first.</p>
-                            )}
-                          </div>
+                        <div className="px-4 py-3">
+                          {phantom2Error && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantom2Error}</p>}
+                          {!phantomPubkey && <p className="font-handwritten text-xs text-[#1a1a1a]/30 mb-2">Connect Key 1 first.</p>}
+                          {phantom2Pubkey ? (
+                            <button onClick={disconnectPhantom2} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                              Disconnect Phantom (K2)
+                            </button>
+                          ) : (
+                            <button
+                              onClick={connectPhantom2}
+                              disabled={phantom2Connecting || !phantomPubkey}
+                              className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                            >
+                              {phantom2Connecting ? "Connecting..." : "Connect Phantom (Key 2)"}
+                            </button>
+                          )}
+                          {!phantom2Pubkey && phantomPubkey && (
+                            <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Switch to your second Phantom account in the extension first.</p>
+                          )}
                         </div>
-                      )}
+                      </div>
 
                       {error && <p className="font-handwritten text-sm text-[#F7931A]">{error}</p>}
 
-                      {(() => {
-                        const key2Connected = walletCombo === "phantom+phantom" ? !!phantom2Pubkey : !!solflarePubkey;
-                        return (
-                          <>
-                            <button
-                              onClick={handleCreateWithWallets}
-                              disabled={!phantomPubkey || !key2Connected}
-                              className="btn-sketch w-full text-xl py-5 disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                              {!phantomPubkey || !key2Connected ? "Connect both wallets first" : "Create My Qoin"}
-                            </button>
-                            <p className="font-handwritten text-sm text-center text-[#1a1a1a]/30">
-                              No keys generated. Your wallet pubkeys register as Qonjoint signers.
-                            </p>
-                          </>
-                        );
-                      })()}
+                      <button
+                        onClick={handleCreateWithWallets}
+                        disabled={!phantomPubkey || !phantom2Pubkey}
+                        className="btn-sketch w-full text-xl py-5 disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        {!phantomPubkey || !phantom2Pubkey ? "Connect both wallets first" : "Create My Qoin"}
+                      </button>
+                      <p className="font-handwritten text-sm text-center text-[#1a1a1a]/30">
+                        No keys generated. Your wallet pubkeys register as Qonjoint signers.
+                      </p>
                     </>
                   )}
                 </div>
@@ -801,10 +779,10 @@ export default function GenerateVault() {
                           </div>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <img src="/solflare-logo.png" className="w-7 h-7 rounded-xl flex-shrink-0" alt="Solflare" />
-                              <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 2 (Solflare)</span>
+                              <img src="/phantom-logo.png" className="w-7 h-7 rounded-xl flex-shrink-0" alt="Phantom K2" />
+                              <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 2 (Phantom)</span>
                             </div>
-                            <span className="font-mono text-xs text-[#F7931A]">{solflarePubkey ? `${solflarePubkey.slice(0, 8)}...${solflarePubkey.slice(-6)}` : "n/a"}</span>
+                            <span className="font-mono text-xs text-[#F7931A]">{phantom2Pubkey ? `${phantom2Pubkey.slice(0, 8)}...${phantom2Pubkey.slice(-6)}` : "n/a"}</span>
                           </div>
                         </>
                       )}
@@ -828,7 +806,7 @@ export default function GenerateVault() {
                           ? "Save Key 1, Key 2, and the Qoin Address. All three. We do not store any of this. Losing them means losing your tokens permanently."
                           : chain === "evm"
                           ? "Save the Vault Address. Both MetaMask keys must be available to sign any transfer. Losing access to either means losing your tokens permanently."
-                          : "Save the Qoin Address. Both Phantom and Solflare wallets must be available to sign any transfer. Losing access to either means losing your tokens permanently."}
+                          : "Save the Qoin Address. Both Phantom accounts must be available to sign any transfer. Losing access to either means losing your tokens permanently."}
                       </p>
                     </div>
                   </div>
