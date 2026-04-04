@@ -105,7 +105,7 @@ export default function HackChallenge() {
           <div className={`border-t ${divider} pt-6`}>
             <div className={`font-sketch text-2xl mb-4 ${text}`}>The Math of the Challenge</div>
             <p className={`font-body font-bold text-base leading-relaxed mb-3 ${muted}`}>
-              This vault holds real value on Solana mainnet. The public key is posted here, on-chain, and in public. Anyone can see the balance. Anyone can attempt to construct a transfer transaction. Without Key 2, no transfer will be accepted by the network.
+              This Qoin holds real value on Solana mainnet. The public key is posted here, on-chain, and in public. Anyone can see the balance. Anyone can attempt to construct a transfer transaction. Without Key 2, no transfer will be accepted by the network.
             </p>
             <p className={`font-body font-bold text-base leading-relaxed ${muted}`}>
               The challenge is not to find the private key of Key 1. Even if you did, you would find that the Qonjoint protocol requires a second signature from a key that has never been published. You cannot derive it, guess it, or compute it from what is available.
@@ -115,7 +115,7 @@ export default function HackChallenge() {
             <div className={`font-sketch text-2xl mb-4 ${text}`}>Rules of the Challenge</div>
             <div className="space-y-3">
               {[
-                { rule: "The vault is live on Solana mainnet" },
+                { rule: "The Qoin is live on Solana mainnet" },
                 { rule: "The balance is real and unprotected by any service" },
                 { rule: "Key 1's public key is posted on this page" },
                 { rule: "Key 2 has never been published anywhere" },
