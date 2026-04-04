@@ -291,7 +291,7 @@ export default function AccessVault() {
         const pollUrl = buildTxUrl(activeShieldAddress, sidebarSelected, 1);
         const [txRes, balRes] = await Promise.all([
           fetch(pollUrl),
-          fetch(`/api/qoin/balance?address=${encodeURIComponent(activeShieldAddress)}`),
+          fetch(`/api/qoin/balance?address=${encodeURIComponent(activeShieldAddress)}`, { cache: "no-store" }),
         ]);
         const [latestList, balData] = await Promise.all([txRes.json(), balRes.json()]);
         if (Array.isArray(latestList) && latestList.length > 0) {
@@ -337,7 +337,7 @@ export default function AccessVault() {
   }, []);
 
   async function fetchBalance(addr: string): Promise<ShieldData> {
-    const res = await fetch(`/api/qoin/balance?address=${encodeURIComponent(addr)}`);
+    const res = await fetch(`/api/qoin/balance?address=${encodeURIComponent(addr)}`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to load balance.");
     return data as ShieldData;
