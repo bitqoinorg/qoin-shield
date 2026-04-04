@@ -53,7 +53,7 @@ export default function Solution() {
     <div className="grid md:grid-cols-2 gap-4">
       {[
         { icon: <SketchTwoKeys className="w-10 h-10" />, label: "Two Keys", sub: "Independent. Separate. Both required. Always." },
-        { icon: <SketchLock className="w-10 h-10" />, label: "Protocol Lock", sub: "Solana program rejects incomplete signatures." },
+        { icon: <SketchLock className="w-10 h-10" />, label: "Protocol Lock", sub: "The blockchain rejects incomplete signatures." },
         { icon: <SketchNetwork className="w-10 h-10" />, label: "On-Chain", sub: "No UI to hack. Math enforces every rule." },
         { icon: <SketchCheckmark className="w-10 h-10" />, label: "Client Side", sub: "Keys never touch a server. Ever." },
       ].map((item) => (
@@ -111,7 +111,7 @@ export default function Solution() {
                 { label: "Both public keys registered", desc: "When you create a Qoin, both your public keys are written on-chain as the two required authorities." },
                 { label: "Transaction built locally", desc: "Your browser builds and signs the transaction with Key 1. The signed transaction is passed to Key 2's signing environment." },
                 { label: "Second signature added", desc: "Key 2 signs the already-signed transaction. The program verifies both signatures match the registered keys." },
-                { label: "Network confirms", desc: "Only after both valid signatures are present does Solana's runtime accept and finalize the transaction." },
+                { label: "Network confirms", desc: "Only after both valid signatures are present does the network accept and finalize the transaction." },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div className="w-6 h-6 rounded-full border-2 border-[#F7931A] flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -129,7 +129,7 @@ export default function Solution() {
         <div className="space-y-5">
           {[
             { n: "01", title: "Generate locally", desc: "Two independent key pairs created in your browser. Nothing transmitted anywhere during generation." },
-            { n: "02", title: "Register on-chain", desc: "Both public keys written to Solana as joint controllers. The program is now aware of your Qonjoint setup." },
+            { n: "02", title: "Register on-chain", desc: "Both public keys registered on-chain as Qonjoint controllers. The Qonjoint setup is now active." },
             { n: "03", title: "Send requires both", desc: "Every transfer must be signed by Key 1 and Key 2. The program rejects anything less, automatically, every time." },
           ].map((step) => (
             <div key={step.n} className={`border-2 ${cardBg} p-5 flex items-start gap-5`}>
