@@ -12,6 +12,7 @@ import {
 import Navbar from "@/components/Navbar";
 import { useApp } from "@/contexts/AppContext";
 import { useWalletPair } from "@/contexts/WalletPairContext";
+import { useEvmWallet } from "@/contexts/EvmWalletContext";
 
 type Step = "intro" | "keys" | "creating" | "done";
 type CreateMode = "cold-keys" | "connect-wallets";
@@ -48,6 +49,13 @@ export default function GenerateVault() {
     connectPhantom, connectSolflare, connectPhantom2,
     disconnectPhantom, disconnectSolflare, disconnectPhantom2,
   } = useWalletPair();
+  const {
+    evmAddress1, evmAddress2,
+    connecting1: evmConnecting1, connecting2: evmConnecting2,
+    error1: evmError1, error2: evmError2,
+    connectK1, connectK2,
+    disconnectK1, disconnectK2,
+  } = useEvmWallet();
 
   const [createMode, setCreateMode] = useState<CreateMode>("cold-keys");
   const [step, setStep] = useState<Step>("intro");
@@ -58,6 +66,8 @@ export default function GenerateVault() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [keysConfirmed, setKeysConfirmed] = useState(false);
+  const [evmVaultAddress, setEvmVaultAddress] = useState("");
+  const [evmVaultTxHash, setEvmVaultTxHash] = useState("");
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
 
   function handleGenerateKeys() {
@@ -104,6 +114,31 @@ export default function GenerateVault() {
       return;
     }
     await callCreateApi(phantomPubkey, key2Pubkey);
+  }
+
+  async function handleCreateEvmVault() {
+    if (!evmAddress1 || !evmAddress2) return;
+    if (evmAddress1.toLowerCase() === evmAddress2.toLowerCase()) {
+      setError("K1 and K2 must be different MetaMask accounts.");
+      return;
+    }
+    setError("");
+    setStep("creating");
+    try {
+      const res = await fetch("/api/evm/create-vault", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ k1Address: evmAddress1, k2Address: evmAddress2 }),
+      });
+      const data = await res.json() as { vaultAddress?: string; txHash?: string; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error || "Vault creation failed.");
+      setEvmVaultAddress(data.vaultAddress!);
+      setEvmVaultTxHash(data.txHash!);
+      setStep("done");
+    } catch (e: unknown) {
+      setError((e as Error).message || "Failed to create EVM vault.");
+      setStep("intro");
+    }
   }
 
   async function copyText(text: string, id: string) {
@@ -240,13 +275,89 @@ export default function GenerateVault() {
               {createMode === "connect-wallets" && (
                 <div className="space-y-4 mb-4">
 
-                  {/* EVM guard */}
+                  {/* EVM connect-wallets flow */}
                   {chain === "evm" ? (
-                    <div className="border border-dashed border-[#F7931A]/40 rounded-sm px-4 py-5 text-center space-y-2">
-                      <p className="font-sketch text-base text-[#1a1a1a]">EVM Vault Creation</p>
-                      <p className="font-handwritten text-sm text-[#1a1a1a]/50">
-                        Gnosis Safe 2-of-2 EVM vaults are coming in Phase 4. Switch to Solana to create a Qonjoint vault now.
+                    <div className="space-y-4">
+                      <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+                        Connect two MetaMask accounts. The server deploys a 2-of-2 Qonjoint Vault on Ethereum. Deployment gas is covered by us.
                       </p>
+
+                      {/* K1 */}
+                      <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-[#FAFAF5] border-b-2 border-[#1a1a1a]">
+                          <div className="flex items-center gap-2">
+                            <SketchKey className="w-6 h-5 text-[#1a1a1a]" />
+                            <span className="font-sketch text-base text-[#1a1a1a]">Key 1</span>
+                          </div>
+                          {evmAddress1 && (
+                            <button onClick={disconnectK1} className="font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors">disconnect</button>
+                          )}
+                        </div>
+                        <div className="px-4 py-3">
+                          {evmAddress1 ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">🦊</span>
+                              <span className="font-mono text-xs text-[#1a1a1a]/60 break-all">{evmAddress1}</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={connectK1}
+                              disabled={evmConnecting1}
+                              className="btn-sketch-outline w-full text-sm py-2 bg-white"
+                            >
+                              {evmConnecting1 ? "Connecting..." : "Connect MetaMask (K1)"}
+                            </button>
+                          )}
+                          {evmError1 && <p className="font-handwritten text-xs text-red-500 mt-1.5">{evmError1}</p>}
+                        </div>
+                      </div>
+
+                      {/* K2 */}
+                      <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2.5 bg-[#FAFAF5] border-b-2 border-[#1a1a1a]">
+                          <div className="flex items-center gap-2">
+                            <SketchKey className="w-6 h-5 text-[#F7931A]" />
+                            <span className="font-sketch text-base text-[#1a1a1a]">Key 2</span>
+                          </div>
+                          {evmAddress2 && (
+                            <button onClick={disconnectK2} className="font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors">disconnect</button>
+                          )}
+                        </div>
+                        <div className="px-4 py-3">
+                          {evmAddress2 ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">🦊</span>
+                              <span className="font-mono text-xs text-[#1a1a1a]/60 break-all">{evmAddress2}</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={connectK2}
+                              disabled={evmConnecting2 || !evmAddress1}
+                              className="btn-sketch-outline w-full text-sm py-2 bg-white disabled:opacity-30"
+                            >
+                              {evmConnecting2 ? "Connecting..." : "Connect MetaMask (K2)"}
+                            </button>
+                          )}
+                          {evmError2 && <p className="font-handwritten text-xs text-red-500 mt-1.5">{evmError2}</p>}
+                          {!evmAddress1 && !evmAddress2 && (
+                            <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Connect K1 first, then switch MetaMask accounts before connecting K2.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {evmAddress1 && evmAddress2 && evmAddress1.toLowerCase() === evmAddress2.toLowerCase() && (
+                        <p className="font-handwritten text-xs text-red-500">K1 and K2 must be different accounts. Switch accounts in MetaMask before connecting K2.</p>
+                      )}
+
+                      {error && <p className="font-handwritten text-sm text-red-500">{error}</p>}
+
+                      <button
+                        onClick={handleCreateEvmVault}
+                        disabled={!evmAddress1 || !evmAddress2 || evmAddress1.toLowerCase() === evmAddress2.toLowerCase()}
+                        className="btn-sketch w-full text-lg py-4 disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Create Qonjoint Vault
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -578,7 +689,7 @@ export default function GenerateVault() {
                   </div>
                 </div>
 
-                {/* Qoin address hero card */}
+                {/* Vault address hero card */}
                 <div className="mb-8 overflow-hidden border-2 border-[#1a1a1a] rounded-sm shadow-[5px_5px_0_#1a1a1a]">
                   <div className="flex items-center justify-between px-5 py-3 bg-[#F7931A] border-b-2 border-[#1a1a1a]">
                     <span className="font-sketch text-xl text-[#FAFAF5]">{t.generate.addressLabel}</span>
@@ -586,20 +697,38 @@ export default function GenerateVault() {
                   </div>
                   <div className="px-5 py-5 bg-[#FAFAF5]">
                     <p className="font-handwritten text-base text-[#1a1a1a]/60 mb-1">Save this to open your vault later.</p>
-                    <p className="font-body font-bold text-sm text-[#F7931A] mb-4">Do not send tokens here. Tokens will be lost.</p>
-                    <div className="code-sketch text-sm text-[#1a1a1a] mb-5 p-3 bg-white">{shieldAddress}</div>
+                    {chain !== "evm" && (
+                      <p className="font-body font-bold text-sm text-[#F7931A] mb-4">Do not send tokens here. Tokens will be lost.</p>
+                    )}
+                    <div className="code-sketch text-sm text-[#1a1a1a] mb-5 p-3 bg-white break-all">
+                      {chain === "evm" ? evmVaultAddress : shieldAddress}
+                    </div>
                     <div className="flex gap-3">
-                      <button onClick={() => copyText(shieldAddress, "shield")} className="btn-sketch-outline flex-1 text-base py-3 bg-white">
-                        {copied === "shield" ? "Copied!" : "Copy Qoin Address"}
-                      </button>
-                      <a
-                        href={explorerUrl(txSig, false)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-sketch flex-1 text-base py-3 text-center"
+                      <button
+                        onClick={() => copyText(chain === "evm" ? evmVaultAddress : shieldAddress, "shield")}
+                        className="btn-sketch-outline flex-1 text-base py-3 bg-white"
                       >
-                        View on Orb
-                      </a>
+                        {copied === "shield" ? "Copied!" : "Copy Vault Address"}
+                      </button>
+                      {chain === "evm" ? (
+                        <a
+                          href={`https://etherscan.io/tx/${evmVaultTxHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-sketch flex-1 text-base py-3 text-center"
+                        >
+                          View on Etherscan
+                        </a>
+                      ) : (
+                        <a
+                          href={explorerUrl(txSig, false)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-sketch flex-1 text-base py-3 text-center"
+                        >
+                          View on Orb
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -643,20 +772,41 @@ export default function GenerateVault() {
                       <div className="font-sketch text-base text-[#1a1a1a]">Registered Signers</div>
                     </div>
                     <div className="px-5 py-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <img src="/phantom-logo.png" className="w-7 h-7 rounded-xl flex-shrink-0" alt="Phantom" />
-                          <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 1 (Phantom)</span>
-                        </div>
-                        <span className="font-mono text-xs text-[#F7931A]">{phantomPubkey ? `${phantomPubkey.slice(0, 8)}...${phantomPubkey.slice(-6)}` : "n/a"}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <img src="/solflare-logo.png" className="w-7 h-7 rounded-xl flex-shrink-0" alt="Solflare" />
-                          <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 2 (Solflare)</span>
-                        </div>
-                        <span className="font-mono text-xs text-[#F7931A]">{solflarePubkey ? `${solflarePubkey.slice(0, 8)}...${solflarePubkey.slice(-6)}` : "n/a"}</span>
-                      </div>
+                      {chain === "evm" ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">🦊</span>
+                              <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 1 (MetaMask)</span>
+                            </div>
+                            <span className="font-mono text-xs text-[#F7931A]">{evmAddress1 ? `${evmAddress1.slice(0, 8)}...${evmAddress1.slice(-6)}` : "n/a"}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">🦊</span>
+                              <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 2 (MetaMask)</span>
+                            </div>
+                            <span className="font-mono text-xs text-[#F7931A]">{evmAddress2 ? `${evmAddress2.slice(0, 8)}...${evmAddress2.slice(-6)}` : "n/a"}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <img src="/phantom-logo.png" className="w-7 h-7 rounded-xl flex-shrink-0" alt="Phantom" />
+                              <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 1 (Phantom)</span>
+                            </div>
+                            <span className="font-mono text-xs text-[#F7931A]">{phantomPubkey ? `${phantomPubkey.slice(0, 8)}...${phantomPubkey.slice(-6)}` : "n/a"}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <img src="/solflare-logo.png" className="w-7 h-7 rounded-xl flex-shrink-0" alt="Solflare" />
+                              <span className="font-body font-bold text-sm text-[#1a1a1a]/50">Key 2 (Solflare)</span>
+                            </div>
+                            <span className="font-mono text-xs text-[#F7931A]">{solflarePubkey ? `${solflarePubkey.slice(0, 8)}...${solflarePubkey.slice(-6)}` : "n/a"}</span>
+                          </div>
+                        </>
+                      )}
                       <p className="font-handwritten text-sm text-[#1a1a1a]/30 pt-1">
                         Keep these wallets to sign transactions. Losing access to either means losing your tokens.
                       </p>
