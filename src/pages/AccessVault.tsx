@@ -1680,11 +1680,9 @@ export default function AccessVault() {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="font-sketch text-3xl text-[#1a1a1a] leading-none">{selLabel}</div>
-                  {selHeld && (
-                    <div className="font-sketch text-xl text-[#F7931A] mt-0.5 leading-none">
-                      {selHeld.balance.toLocaleString()} {selLabel}
-                    </div>
-                  )}
+                  <div className="font-sketch text-xl mt-0.5 leading-none" style={{ color: selHeld && selHeld.balance > 0 ? "#F7931A" : "#1a1a1a", opacity: selHeld && selHeld.balance > 0 ? 1 : 0.3 }}>
+                    {selHeld ? fmtBalance(selHeld.balance) : "0.00"} {selLabel}
+                  </div>
                   {selDex && (
                     <div className="font-mono text-sm text-[#1a1a1a]/50 mt-1">{fmtPrice(selDex.price)} per token</div>
                   )}
