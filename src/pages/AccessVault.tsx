@@ -652,6 +652,16 @@ export default function AccessVault() {
     return `$${p.toFixed(8)}`;
   }
 
+  function fmtBalance(n: number): string {
+    if (n === 0) return "0.00";
+    if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+    if (n >= 1) return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    if (n >= 0.0001) return n.toFixed(6);
+    return n.toPrecision(4);
+  }
+
   function selectToken(mint: string, held?: TokenBalance) {
     setSidebarSelected(mint);
     setActiveTab(null);
@@ -1494,7 +1504,7 @@ export default function AccessVault() {
                         <span className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">{t.mint === WSOL_MINT ? "wSOL" : (t.symbol ?? t.name?.slice(0, 8) ?? "Token")}</span>
                         {price && !t.isNft && <span className="font-mono text-xs text-[#F7931A] flex-shrink-0">{fmtPrice(price)}</span>}
                       </div>
-                      <div className="font-mono text-xs text-[#1a1a1a]/50 mt-0.5">{t.isNft ? "NFT" : t.balance.toLocaleString()}</div>
+                      <div className="font-mono text-xs text-[#1a1a1a]/50 mt-0.5">{t.isNft ? "NFT" : fmtBalance(t.balance)}</div>
                     </div>
                     {tdex?.change24h != null && !t.isNft && (
                       <span className="hidden md:inline font-mono text-xs flex-shrink-0" style={{ color: tdex.change24h >= 0 ? "#F7931A" : "#1a1a1a", opacity: tdex.change24h >= 0 ? 1 : 0.5 }}>
@@ -1533,8 +1543,11 @@ export default function AccessVault() {
                           </div>
                         )}
                         <div className="hidden md:block min-w-0 flex-1">
-                          <div className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">{meta?.symbol ?? t.symbol}</div>
-                          <div className="font-mono text-xs text-[#1a1a1a]/35">{dexPrices[t.mint]?.price != null ? fmtPrice(dexPrices[t.mint].price) : meta?.name ?? "SPL"}</div>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">{meta?.symbol ?? t.symbol}</span>
+                            {dexPrices[t.mint]?.price != null && <span className="font-mono text-xs text-[#F7931A] flex-shrink-0">{fmtPrice(dexPrices[t.mint].price)}</span>}
+                          </div>
+                          <div className="font-mono text-xs text-[#1a1a1a]/35 mt-0.5">0.00</div>
                         </div>
                         {sidebarSelected === t.mint && <span className="hidden md:inline w-1.5 h-1.5 rounded-full bg-[#F7931A] flex-shrink-0" />}
                       </button>
