@@ -376,7 +376,7 @@ export default function AccessVault() {
       if (cached) vaultAddr = cached.vaultAddress;
     }
     if (!vaultAddr || !/^0x[0-9a-fA-F]{40}$/.test(vaultAddr)) {
-      setEvmError("Enter your Vault address below, or create a vault first.");
+      setEvmError("Enter your Qoin address below, or create a Qoin first.");
       return;
     }
     setEvmError("");
@@ -387,7 +387,7 @@ export default function AccessVault() {
       setEvmShield(data);
       setEvmActiveAddress(vaultAddr);
     } catch (e: unknown) {
-      setEvmError((e as Error).message || "Failed to load. Check the vault address.");
+      setEvmError((e as Error).message || "Failed to load. Check the Qoin address.");
     } finally {
       setEvmLoading(false);
     }
@@ -448,7 +448,7 @@ export default function AccessVault() {
         : `/api/qoin/find-vault?key1=${encodeURIComponent(p1)}`;
       const r = await fetch(url);
       const d = await r.json() as { vaults?: string[]; error?: string };
-      if (!d.vaults || d.vaults.length === 0) throw new Error("No Qoin vault found for this key.");
+      if (!d.vaults || d.vaults.length === 0) throw new Error("No Qoin found for this key.");
       const vaultAddr = d.vaults[0];
       const data = await fetchBalance(vaultAddr);
       setShield(data);
@@ -459,7 +459,7 @@ export default function AccessVault() {
       fetchChart(WSOL_MINT);
       fetchDexPrices(["__sol__", ...data.tokens.map(t => t.mint)]);
     } catch (e: unknown) {
-      setError((e as Error).message || "Vault not found.");
+      setError((e as Error).message || "Qoin not found.");
     } finally {
       setLoading(false);
     }
@@ -596,8 +596,8 @@ export default function AccessVault() {
             if (phantom2Pubkey && !signers.includes(phantom2Pubkey)) missing.push("Phantom (K2)");
             if (missing.length > 0) {
               setWalletMismatch(
-                `${missing.join(" & ")} connected is not a signer of this vault. ` +
-                `Make sure you connect the exact same wallets used when the vault was created. ` +
+                `${missing.join(" & ")} connected is not a signer of this Qoin. ` +
+                `Make sure you connect the exact same wallets used when the Qoin was created. ` +
                 `You can still view balances, but Send will be rejected on-chain.`
               );
             }
@@ -815,7 +815,7 @@ export default function AccessVault() {
           {chain === "evm" && accessMode === "connect-wallets" && (
             <div className="w-full max-w-md space-y-4">
               <p className="font-handwritten text-sm text-[#1a1a1a]/40">
-                Connect two MetaMask accounts as co-signers. Key 1 is used to look up the vault address.
+                Connect two MetaMask accounts as co-signers. Key 1 is used to look up the Qoin address.
               </p>
 
               {/* MetaMask K1 */}
@@ -877,14 +877,14 @@ export default function AccessVault() {
                 </div>
               </div>
 
-              {/* Vault address input — auto-filled from localStorage if known */}
+              {/* Qoin address input — auto-filled from localStorage if known */}
               <div>
                 <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">
-                  Vault Address
+                  Qoin Address
                 </label>
                 <input
                   type="text"
-                  placeholder="0x... (your Qonjoint Vault)"
+                  placeholder="0x... (your Qonjoint Qoin)"
                   value={evmConnectVaultInput}
                   onChange={(e) => { setEvmConnectVaultInput(e.target.value); setEvmError(""); }}
                   className="input-sketch w-full text-sm py-3 font-mono"
@@ -893,7 +893,7 @@ export default function AccessVault() {
                 />
                 {!evmConnectVaultInput && evmAddress1 && (
                   <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1">
-                    No saved vault found for this key. Paste your Vault address above, or{" "}
+                    No saved Qoin found for this key. Paste your Qoin address above, or{" "}
                     <button type="button" className="text-[#F7931A] underline" onClick={() => navigate("/qoin/create")}>create one</button>.
                   </p>
                 )}
@@ -907,7 +907,7 @@ export default function AccessVault() {
                 disabled={evmLoading || !evmAddress1 || (!!evmConnectVaultInput && !/^0x[0-9a-fA-F]{40}$/.test(evmConnectVaultInput.trim()))}
                 className="btn-sketch w-full py-3.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {evmLoading ? "Loading..." : !evmAddress1 ? "Connect Key 1 first" : "Open Vault"}
+                {evmLoading ? "Loading..." : !evmAddress1 ? "Connect Key 1 first" : "Open Qoin"}
               </button>
               {evmError && <p className="font-handwritten text-sm text-[#F7931A]">{evmError}</p>}
             </div>
@@ -917,7 +917,7 @@ export default function AccessVault() {
           {chain === "solana" && accessMode === "cold-keys" && (
             <div className="w-full max-w-md space-y-3">
               <p className="font-handwritten text-sm text-[#1a1a1a]/40">
-                Paste your Key 1 and Key 2 public keys to find your vault.
+                Paste your Key 1 and Key 2 public keys to find your Qoin.
               </p>
               <input
                 type="text"
@@ -1199,14 +1199,14 @@ export default function AccessVault() {
                   }}
                   className="btn-sketch text-base py-3 px-8"
                 >
-                  Send from Vault
+                  Send from Qoin
                 </button>
               </div>
             ) : (
               <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
                 {/* Send header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#1a1a1a]/10 bg-[#FAFAF5]">
-                  <span className="font-sketch text-base text-[#1a1a1a]">Send from Vault</span>
+                  <span className="font-sketch text-base text-[#1a1a1a]">Send from Qoin</span>
                   <button
                     onClick={() => { setEvmSendOpen(false); setEvmSendStatus("idle"); }}
                     className="font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors"
@@ -1411,7 +1411,7 @@ export default function AccessVault() {
                           <>
                             <div className="flex items-center gap-2 px-3 py-2 border border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm">
                               <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-[#1a1a1a]/40 flex-shrink-0"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                              <span className="font-handwritten text-xs text-[#1a1a1a]/40">K1 pays execution gas from MetaMask wallet (not the vault).</span>
+                              <span className="font-handwritten text-xs text-[#1a1a1a]/40">K1 pays execution gas from MetaMask wallet (not the Qoin).</span>
                             </div>
                             <button
                               disabled={evmSendStatus === "executing"}
@@ -1563,7 +1563,7 @@ export default function AccessVault() {
                   <div className="flex items-start gap-1.5 px-2 py-2 bg-[#1a1a1a]/4 rounded-sm border border-[#1a1a1a]/10">
                     <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"><circle cx="8" cy="8" r="6.5" stroke="#F7931A" strokeWidth="1.3"/><path d="M8 5v3.5M8 10.5v.5" stroke="#F7931A" strokeWidth="1.3" strokeLinecap="round"/></svg>
                     <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
-                      <span className="font-bold text-[#1a1a1a]">SPL tokens only.</span> Never send native SOL to this vault. SOL cannot be managed by a multisig account. Use <span className="font-bold">wSOL</span> (Wrapped SOL) to hold SOL inside your vault.
+                      <span className="font-bold text-[#1a1a1a]">SPL tokens only.</span> Never send native SOL to this Qoin. Use <span className="font-bold">wSOL</span> (Wrapped SOL) to hold SOL inside your Qoin.
                     </p>
                   </div>
                   <input
@@ -1583,7 +1583,7 @@ export default function AccessVault() {
                   {/* wSOL CA entered — already supported */}
                   {customMint === WSOL_MINT && (
                     <div className="border-2 border-[#F7931A]/50 bg-[#F7931A]/5 rounded-sm px-3 py-2.5 space-y-1">
-                      <p className="font-body font-bold text-xs text-[#F7931A]">wSOL is already in your vault</p>
+                      <p className="font-body font-bold text-xs text-[#F7931A]">wSOL is already in your Qoin</p>
                       <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
                         That address is <span className="font-bold">Wrapped SOL (wSOL)</span>. It is already available at the top of your token list. No need to add it again. Open the wSOL tab and copy its receive address.
                       </p>
@@ -1597,7 +1597,7 @@ export default function AccessVault() {
                     <div className="border-2 border-red-300 bg-red-50 rounded-sm px-3 py-2.5 space-y-1">
                       <p className="font-body font-bold text-xs text-red-500">Not an SPL token</p>
                       <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
-                        That is the Solana System Program address, not a token mint. Native SOL <span className="font-bold text-red-500">cannot</span> enter a Qoin vault. Use <span className="font-bold">wSOL</span> already available in your sidebar.
+                        That is the Solana System Program address, not a token mint. Native SOL <span className="font-bold text-red-500">cannot</span> enter a Qoin. Use <span className="font-bold">wSOL</span> already available in your sidebar.
                       </p>
                     </div>
                   )}
@@ -1693,7 +1693,7 @@ export default function AccessVault() {
               {totalUSD > 0 && shield.tokens.filter(t => !t.isNft && (t.pricePerToken ?? dexPrices[t.mint]?.price) != null).length > 1 && (
                 <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] px-5 py-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-widest">Vault Portfolio</span>
+                    <span className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-widest">Qoin Portfolio</span>
                     <span className="font-sketch text-xl text-[#1a1a1a]">${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="space-y-2">
@@ -1794,7 +1794,7 @@ export default function AccessVault() {
                     </div>
                     {sidebarSelected === WSOL_MINT ? (
                       <div className="w-full border-2 border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm px-4 py-3 space-y-1.5">
-                        <p className="font-body font-bold text-xs text-[#1a1a1a] uppercase tracking-wide">How to add SOL to your vault:</p>
+                        <p className="font-body font-bold text-xs text-[#1a1a1a] uppercase tracking-wide">How to add SOL to your Qoin:</p>
                         <ol className="space-y-1.5">
                           <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">1</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Open Phantom</span></li>
                           <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">2</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Use <span className="font-bold">Swap or Wrap</span> to convert SOL to wSOL</span></li>
