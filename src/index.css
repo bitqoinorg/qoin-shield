@@ -98,6 +98,9 @@
   }
   .font-handwritten {
     font-family: 'Caveat', cursive;
+    font-weight: 700;
+    font-size: 1.15em;
+    letter-spacing: 0.01em;
   }
   .font-body {
     font-family: 'Patrick Hand', sans-serif;
