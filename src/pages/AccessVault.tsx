@@ -1183,7 +1183,10 @@ export default function AccessVault() {
                         <div className="font-body font-bold text-sm text-[#1a1a1a]">{tok.symbol}</div>
                         <div className="font-mono text-xs text-[#1a1a1a]/40 truncate">{tok.name}</div>
                       </div>
-                      <div className="font-body font-bold text-sm text-[#1a1a1a] tabular-nums">{tok.balance.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-body font-bold text-sm text-[#1a1a1a] tabular-nums">{fmtBalance(tok.balance)}</div>
+                        <div className="font-mono text-xs text-[#1a1a1a]/35">{tok.symbol}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
