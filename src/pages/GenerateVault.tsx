@@ -68,6 +68,7 @@ export default function GenerateVault() {
   const [evmVaultAddress, setEvmVaultAddress] = useState("");
   const [evmVaultTxHash, setEvmVaultTxHash] = useState("");
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
+  const [savedChecked, setSavedChecked] = useState(false);
 
   function handleGenerateKeys() {
     setPk1(generateKeypair());
@@ -655,6 +656,60 @@ export default function GenerateVault() {
         {/* STEP 4: DONE */}
         {step === "done" && (
           <div className="max-w-7xl mx-auto">
+
+            {/* SAVE NOW NOTICE */}
+            <div className="mb-8 border-2 border-[#1a1a1a] bg-[#fff8f0] rounded-sm shadow-[5px_5px_0_#1a1a1a] overflow-hidden">
+              <div className="bg-[#1a1a1a] px-5 py-3 flex items-center gap-3">
+                <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 flex-shrink-0 text-[#F7931A]"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <span className="font-sketch text-base text-[#F7931A] tracking-wide">Save These Now. We Cannot Help You Recover.</span>
+              </div>
+              <div className="px-5 py-5">
+                <p className="font-body text-sm text-[#1a1a1a]/70 mb-4">
+                  Zero server access. Zero recovery. Zero exceptions. If you lose any of the items below, your Qoin is gone forever. No support ticket, no recovery phrase, no way back.
+                </p>
+                <div className="space-y-2 mb-5">
+                  {createMode === "cold-keys" ? (
+                    <>
+                      <div className="flex items-center gap-3 bg-white border border-[#1a1a1a]/10 rounded-sm px-4 py-2.5">
+                        <span className="w-2 h-2 rounded-full bg-[#F7931A] flex-shrink-0" />
+                        <span className="font-body font-semibold text-sm text-[#1a1a1a]">Key 1 private key</span>
+                        <span className="ml-auto font-body text-xs text-[#1a1a1a]/40">shown below</span>
+                      </div>
+                      <div className="flex items-center gap-3 bg-white border border-[#1a1a1a]/10 rounded-sm px-4 py-2.5">
+                        <span className="w-2 h-2 rounded-full bg-[#F7931A] flex-shrink-0" />
+                        <span className="font-body font-semibold text-sm text-[#1a1a1a]">Key 2 private key</span>
+                        <span className="ml-auto font-body text-xs text-[#1a1a1a]/40">shown below</span>
+                      </div>
+                      <div className="flex items-center gap-3 bg-white border border-[#1a1a1a]/10 rounded-sm px-4 py-2.5">
+                        <span className="w-2 h-2 rounded-full bg-[#F7931A] flex-shrink-0" />
+                        <span className="font-body font-semibold text-sm text-[#1a1a1a]">Your Qoin address</span>
+                        <span className="ml-auto font-body text-xs text-[#1a1a1a]/40">shown below</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-3 bg-white border border-[#1a1a1a]/10 rounded-sm px-4 py-2.5">
+                      <span className="w-2 h-2 rounded-full bg-[#F7931A] flex-shrink-0" />
+                      <span className="font-body font-semibold text-sm text-[#1a1a1a]">Your Qoin address</span>
+                      <span className="ml-auto font-body text-xs text-[#1a1a1a]/40">shown below</span>
+                    </div>
+                  )}
+                </div>
+                <label className="flex items-start gap-3 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={savedChecked}
+                    onChange={e => setSavedChecked(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 accent-[#F7931A] flex-shrink-0 cursor-pointer"
+                  />
+                  <span className="font-body text-sm font-semibold text-[#1a1a1a] group-hover:text-[#F7931A] transition-colors">
+                    {createMode === "cold-keys"
+                      ? "I have saved all three — Key 1, Key 2, and my Qoin address — in a safe place."
+                      : "I have saved my Qoin address in a safe place."}
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-8 items-start">
               {/* LEFT COLUMN */}
               <div>
@@ -675,7 +730,7 @@ export default function GenerateVault() {
                     <span className="font-handwritten text-sm text-[#1a1a1a] bg-[#FAFAF5] border border-[#1a1a1a] px-2.5 py-0.5 rounded-sm font-bold shadow-[2px_2px_0_#1a1a1a]">Share Publicly</span>
                   </div>
                   <div className="px-5 py-5 bg-[#FAFAF5]">
-                    <p className="font-handwritten text-base text-[#1a1a1a]/60 mb-1">Save this to open your vault later.</p>
+                    <p className="font-handwritten text-base text-[#1a1a1a]/60 mb-1">Save this to open your Qoin later.</p>
                     {chain !== "evm" && (
                       <p className="font-body font-bold text-sm text-[#F7931A] mb-4">Do not send tokens here. Tokens will be lost.</p>
                     )}
@@ -687,7 +742,7 @@ export default function GenerateVault() {
                         onClick={() => copyText(chain === "evm" ? evmVaultAddress : shieldAddress, "shield")}
                         className="btn-sketch-outline flex-1 text-base py-3 bg-white"
                       >
-                        {copied === "shield" ? "Copied!" : "Copy Vault Address"}
+                        {copied === "shield" ? "Copied!" : "Copy Qoin Address"}
                       </button>
                       {chain === "evm" ? (
                         <a
@@ -812,9 +867,16 @@ export default function GenerateVault() {
                   </div>
                 </div>
 
-                <button onClick={() => navigate("/qoin/open")} className="btn-sketch w-full text-2xl py-6 shadow-[6px_6px_0_#1a1a1a]">
+                <button
+                  onClick={() => navigate("/qoin/open")}
+                  disabled={!savedChecked}
+                  className={`btn-sketch w-full text-2xl py-6 shadow-[6px_6px_0_#1a1a1a] transition-opacity ${!savedChecked ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
                   {t.generate.openBtn}
                 </button>
+                {!savedChecked && (
+                  <p className="font-body text-xs text-center text-[#1a1a1a]/40 mt-3">Tick the checkbox above to continue.</p>
+                )}
               </div>
             </div>
           </div>
