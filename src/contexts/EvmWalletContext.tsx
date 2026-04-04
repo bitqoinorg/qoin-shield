@@ -19,6 +19,8 @@ interface EvmWalletState {
   connectK2(): Promise<void>;
   disconnectK1(): void;
   disconnectK2(): void;
+  signTypedDataK1(typedData: object): Promise<string>;
+  signTypedDataK2(typedData: object): Promise<string>;
 }
 
 const EvmWalletContext = createContext<EvmWalletState | null>(null);
@@ -87,6 +89,26 @@ export function EvmWalletProvider({ children }: { children: ReactNode }) {
     setError2("");
   }, []);
 
+  const signTypedDataK1 = useCallback(async (typedData: object): Promise<string> => {
+    if (!window.ethereum) throw new Error("MetaMask not detected");
+    if (!evmAddress1) throw new Error("K1 not connected");
+    const sig = await window.ethereum.request({
+      method: "eth_signTypedData_v4",
+      params: [evmAddress1, JSON.stringify(typedData)],
+    });
+    return sig as string;
+  }, [evmAddress1]);
+
+  const signTypedDataK2 = useCallback(async (typedData: object): Promise<string> => {
+    if (!window.ethereum) throw new Error("MetaMask not detected");
+    if (!evmAddress2) throw new Error("K2 not connected");
+    const sig = await window.ethereum.request({
+      method: "eth_signTypedData_v4",
+      params: [evmAddress2, JSON.stringify(typedData)],
+    });
+    return sig as string;
+  }, [evmAddress2]);
+
   return (
     <EvmWalletContext.Provider value={{
       evmAddress1,
@@ -99,6 +121,8 @@ export function EvmWalletProvider({ children }: { children: ReactNode }) {
       connectK2,
       disconnectK1,
       disconnectK2,
+      signTypedDataK1,
+      signTypedDataK2,
     }}>
       {children}
     </EvmWalletContext.Provider>
