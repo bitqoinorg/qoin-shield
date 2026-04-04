@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/contexts/AppContext";
 import { WalletPairProvider } from "@/contexts/WalletPairContext";
+import { EvmWalletProvider } from "@/contexts/EvmWalletContext";
 import Landing from "@/pages/Landing";
 import Qoin from "@/pages/Qoin";
 import GenerateVault from "@/pages/GenerateVault";
@@ -48,10 +49,12 @@ function App() {
       <TooltipProvider>
         <AppProvider>
           <WalletPairProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
+            <EvmWalletProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </EvmWalletProvider>
           </WalletPairProvider>
         </AppProvider>
       </TooltipProvider>
