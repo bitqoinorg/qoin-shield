@@ -69,15 +69,14 @@ type TxRecord = {
 
 export default function AccessVault() {
   const [, navigate] = useLocation();
-  const { t, dark, chain } = useApp();
+  const { t, dark, chain, setChain } = useApp();
   const {
-    walletCombo, setWalletCombo,
-    phantomPubkey, solflarePubkey, phantom2Pubkey,
-    phantomConnecting, solflareConnecting, phantom2Connecting,
-    phantomError, solflareError, phantom2Error,
-    connectPhantom, connectSolflare, connectPhantom2,
-    disconnectPhantom, disconnectSolflare, disconnectPhantom2,
-    signWithPhantom, signWithSolflare, signWithPhantom2,
+    phantomPubkey, phantom2Pubkey,
+    phantomConnecting, phantom2Connecting,
+    phantomError, phantom2Error,
+    connectPhantom, connectPhantom2,
+    disconnectPhantom, disconnectPhantom2,
+    signWithPhantom, signWithPhantom2,
   } = useWalletPair();
   const {
     evmAddress1, evmAddress2,
@@ -169,7 +168,7 @@ export default function AccessVault() {
   // Auto-detect Qoin when both wallets connect in Connect Wallets mode
   useEffect(() => {
     if (accessMode !== "connect-wallets") return;
-    const key2Pubkey = walletCombo === "phantom+phantom" ? phantom2Pubkey : solflarePubkey;
+    const key2Pubkey = phantom2Pubkey;
     if (!phantomPubkey || !key2Pubkey) return;
     if (shield) return;
     if (loading) return;
@@ -196,7 +195,7 @@ export default function AccessVault() {
         }
       })
       .catch(() => setLoading(false));
-  }, [phantomPubkey, solflarePubkey, phantom2Pubkey, walletCombo, accessMode]);
+  }, [phantomPubkey, phantom2Pubkey, accessMode]);
 
   useEffect(() => {
     if (!evmAddress1 || accessMode !== "connect-wallets") return;
@@ -519,9 +518,8 @@ export default function AccessVault() {
 
   async function handleTransferWallets() {
     if (!shield || !selectedToken) return;
-    const isDualPhantom = walletCombo === "phantom+phantom";
-    const key2Pubkey = isDualPhantom ? phantom2Pubkey : solflarePubkey;
-    const signK2 = isDualPhantom ? signWithPhantom2 : signWithSolflare;
+    const key2Pubkey = phantom2Pubkey;
+    const signK2 = signWithPhantom2;
     if (!signWithPhantom || !signK2 || !phantomPubkey || !key2Pubkey) return;
     setTxLoading(true);
     setTxError("");
@@ -537,7 +535,7 @@ export default function AccessVault() {
         return signWithPhantom(tx);
       };
       const wrappedK2 = async (tx: import("@solana/web3.js").Transaction) => {
-        setSigningStep(isDualPhantom ? ("phantom" as "solflare") : "solflare");
+        setSigningStep("phantom");
         return signK2(tx);
       };
 
@@ -588,18 +586,14 @@ export default function AccessVault() {
       fetchDexPrices(["__sol__", ...data.tokens.map(t => t.mint)]);
 
       // Check if connected wallets match registered vault signers
-      if (phantomPubkey || solflarePubkey || phantom2Pubkey) {
+      if (phantomPubkey || phantom2Pubkey) {
         try {
           const sigRes = await fetch(`/api/qoin/multisig-signers?address=${encodeURIComponent(addr)}`);
           if (sigRes.ok) {
             const { signers } = await sigRes.json() as { signers: string[] };
             const missing: string[] = [];
             if (phantomPubkey && !signers.includes(phantomPubkey)) missing.push("Phantom (K1)");
-            if (walletCombo === "phantom+phantom") {
-              if (phantom2Pubkey && !signers.includes(phantom2Pubkey)) missing.push("Phantom (K2)");
-            } else {
-              if (solflarePubkey && !signers.includes(solflarePubkey)) missing.push("Solflare");
-            }
+            if (phantom2Pubkey && !signers.includes(phantom2Pubkey)) missing.push("Phantom (K2)");
             if (missing.length > 0) {
               setWalletMismatch(
                 `${missing.join(" & ")} connected is not a signer of this vault. ` +
@@ -728,31 +722,8 @@ export default function AccessVault() {
           <SketchShield className="w-14 h-14 mb-5 opacity-15" />
           <h1 className="font-sketch text-4xl text-[#1a1a1a] mb-1">{t.access.openBtn}</h1>
           <p className="font-handwritten text-base text-[#1a1a1a]/40 mb-6">
-            {chain === "evm" ? "Enter an EVM address to view its balance." : t.access.enterKeys}
+            {t.access.enterKeys}
           </p>
-
-          {/* Chain selector in-page */}
-          <div className="w-full max-w-md mb-5">
-            <div className="flex items-center gap-2 justify-center">
-              <span className="font-handwritten text-xs text-[#1a1a1a]/30 uppercase tracking-widest">Chain</span>
-              <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden">
-                <button
-                  onClick={() => { import("@/contexts/AppContext").then(m => void m); }}
-                  className={`px-5 py-2 font-body font-bold text-xs transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:text-[#1a1a1a]"}`}
-                  style={{ pointerEvents: "none", opacity: chain === "solana" ? 1 : 0.5 }}
-                >
-                  SOL
-                </button>
-                <button
-                  className={`px-5 py-2 font-body font-bold text-xs border-l border-[#1a1a1a]/20 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:text-[#1a1a1a]"}`}
-                  style={{ pointerEvents: "none", opacity: chain === "evm" ? 1 : 0.5 }}
-                >
-                  ETH
-                </button>
-              </div>
-              <span className="font-handwritten text-xs text-[#1a1a1a]/25">(change in navbar)</span>
-            </div>
-          </div>
 
           {/* Mode selector */}
           <div className="w-full max-w-md mb-6">
@@ -761,7 +732,7 @@ export default function AccessVault() {
                 onClick={() => { setAccessMode("cold-keys"); setError(""); setEvmError(""); }}
                 className={`flex-1 py-3 font-body font-bold text-sm transition-all ${accessMode === "cold-keys" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
               >
-                {chain === "evm" ? "Direct Address" : "Cold Keys"}
+                Cold Keys
               </button>
               <button
                 onClick={() => { setAccessMode("connect-wallets"); setError(""); setEvmError(""); }}
@@ -771,6 +742,26 @@ export default function AccessVault() {
               </button>
             </div>
           </div>
+
+          {/* Cold Keys inline chain selector */}
+          {accessMode === "cold-keys" && (
+            <div className="w-full max-w-md mb-3">
+              <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-sm font-body font-bold">
+                <button
+                  onClick={() => setChain("evm")}
+                  className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                >
+                  EVM
+                </button>
+                <button
+                  onClick={() => setChain("solana")}
+                  className={`flex-1 py-2.5 border-l-2 border-[#1a1a1a]/20 transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                >
+                  Solana
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* EVM — Direct Address mode */}
           {chain === "evm" && accessMode === "cold-keys" && (
@@ -797,6 +788,26 @@ export default function AccessVault() {
                 {evmLoading ? "Loading..." : t.access.openBtn}
               </button>
               {evmError && <p className="font-handwritten text-sm text-[#F7931A]">{evmError}</p>}
+            </div>
+          )}
+
+          {/* Connect Wallets inline chain selector */}
+          {accessMode === "connect-wallets" && (
+            <div className="w-full max-w-md mb-3">
+              <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-sm font-body font-bold">
+                <button
+                  onClick={() => setChain("evm")}
+                  className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                >
+                  EVM
+                </button>
+                <button
+                  onClick={() => setChain("solana")}
+                  className={`flex-1 py-2.5 border-l-2 border-[#1a1a1a]/20 transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                >
+                  Solana
+                </button>
+              </div>
             </div>
           )}
 
@@ -970,33 +981,12 @@ export default function AccessVault() {
             </div>
           )}
 
-          {/* SOL — Connect Wallets mode (Dual Phantom or Phantom + Solflare) */}
+          {/* SOL — Connect Wallets mode (Dual Phantom) */}
           {chain === "solana" && accessMode === "connect-wallets" && (
             <div className="w-full max-w-md space-y-4">
 
-              {/* Wallet combo selector */}
-              <div>
-                <p className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest mb-2">Wallet pair</p>
-                <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-xs font-body font-bold">
-                  <button
-                    onClick={() => setWalletCombo("phantom+solflare")}
-                    className={`flex-1 py-2 transition-all ${walletCombo === "phantom+solflare" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
-                  >
-                    Phantom + Solflare
-                  </button>
-                  <button
-                    onClick={() => setWalletCombo("phantom+phantom")}
-                    className={`flex-1 py-2 border-l-2 border-[#1a1a1a]/20 transition-all ${walletCombo === "phantom+phantom" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
-                  >
-                    Dual Phantom
-                  </button>
-                </div>
-              </div>
-
               <p className="font-handwritten text-sm text-[#1a1a1a]/40">
-                {walletCombo === "phantom+phantom"
-                  ? "Connect Phantom as Key 1, switch Phantom accounts, then connect as Key 2."
-                  : "Connect Phantom as Key 1 and Solflare as Key 2, then enter your Qoin address."}
+                Connect Phantom as Key 1, switch accounts in the extension, then connect as Key 2.
               </p>
 
               {/* Key 1 (always Phantom) */}
@@ -1028,72 +1018,42 @@ export default function AccessVault() {
                 </div>
               </div>
 
-              {/* Key 2 — Solflare or Dual Phantom */}
-              {walletCombo === "phantom+solflare" ? (
-                <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
-                    <div className="flex items-center gap-2">
-                      <img src="/solflare-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: solflarePubkey ? 1 : 0.6 }} alt="Solflare" />
-                      <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Solflare)</span>
-                    </div>
-                    {solflarePubkey && (
-                      <span className="font-mono text-xs text-[#1a1a1a]/40">{solflarePubkey.slice(0, 6)}...{solflarePubkey.slice(-4)}</span>
-                    )}
+              {/* Key 2 — Phantom (second account) */}
+              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+                  <div className="flex items-center gap-2">
+                    <img src="/phantom-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: phantom2Pubkey ? 1 : 0.6 }} alt="Phantom K2" />
+                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Phantom — switch account first)</span>
                   </div>
-                  <div className="px-4 py-3">
-                    {solflareError && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{solflareError}</p>}
-                    {solflarePubkey ? (
-                      <button onClick={disconnectSolflare} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
-                        Disconnect Solflare
-                      </button>
-                    ) : (
-                      <button
-                        onClick={connectSolflare}
-                        disabled={solflareConnecting}
-                        className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
-                      >
-                        {solflareConnecting ? "Connecting..." : "Connect Solflare"}
-                      </button>
-                    )}
-                  </div>
+                  {phantom2Pubkey && (
+                    <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
+                  )}
                 </div>
-              ) : (
-                <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
-                    <div className="flex items-center gap-2">
-                      <img src="/phantom-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: phantom2Pubkey ? 1 : 0.6 }} alt="Phantom K2" />
-                      <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Phantom — switch account first)</span>
-                    </div>
-                    {phantom2Pubkey && (
-                      <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
-                    )}
-                  </div>
-                  <div className="px-4 py-3">
-                    {phantom2Error && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantom2Error}</p>}
-                    {!phantomPubkey && <p className="font-handwritten text-xs text-[#1a1a1a]/30 mb-2">Connect Key 1 first.</p>}
-                    {phantom2Pubkey ? (
-                      <button onClick={disconnectPhantom2} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
-                        Disconnect Phantom (K2)
-                      </button>
-                    ) : (
-                      <button
-                        onClick={connectPhantom2}
-                        disabled={phantom2Connecting || !phantomPubkey}
-                        className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
-                      >
-                        {phantom2Connecting ? "Connecting..." : "Connect Phantom (Key 2)"}
-                      </button>
-                    )}
-                    {!phantom2Pubkey && phantomPubkey && (
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Switch to your second Phantom account in the extension, then connect.</p>
-                    )}
-                  </div>
+                <div className="px-4 py-3">
+                  {phantom2Error && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantom2Error}</p>}
+                  {!phantomPubkey && <p className="font-handwritten text-xs text-[#1a1a1a]/30 mb-2">Connect Key 1 first.</p>}
+                  {phantom2Pubkey ? (
+                    <button onClick={disconnectPhantom2} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                      Disconnect Phantom (K2)
+                    </button>
+                  ) : (
+                    <button
+                      onClick={connectPhantom2}
+                      disabled={phantom2Connecting || !phantomPubkey}
+                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                    >
+                      {phantom2Connecting ? "Connecting..." : "Connect Phantom (Key 2)"}
+                    </button>
+                  )}
+                  {!phantom2Pubkey && phantomPubkey && (
+                    <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Switch to your second Phantom account in the extension, then connect.</p>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Qoin address input */}
               {(() => {
-                const key2Connected = walletCombo === "phantom+phantom" ? !!phantom2Pubkey : !!solflarePubkey;
+                const key2Connected = !!phantom2Pubkey;
                 return (
                   <div>
                     <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">Qoin Address</label>
@@ -1628,7 +1588,7 @@ export default function AccessVault() {
                         That address is <span className="font-bold">Wrapped SOL (wSOL)</span>. It is already available at the top of your token list. No need to add it again. Open the wSOL tab and copy its receive address.
                       </p>
                       <p className="font-handwritten text-xs text-[#1a1a1a]/40 mt-1">
-                        Want to hold SOL? Wrap it to wSOL in Phantom or Solflare first, then send wSOL to the receive address.
+                        Want to hold SOL? Wrap it to wSOL in Phantom first, then send wSOL to the receive address.
                       </p>
                     </div>
                   )}
@@ -1800,7 +1760,7 @@ export default function AccessVault() {
                           <p className="font-body font-bold text-sm text-red-500">Send wSOL only, not native SOL</p>
                         </div>
                         <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
-                          This accepts <span className="font-bold">wSOL (Wrapped SOL)</span> only. Native SOL sent here will be permanently lost. Wrap SOL to wSOL in Phantom or Solflare first.
+                          This accepts <span className="font-bold">wSOL (Wrapped SOL)</span> only. Native SOL sent here will be permanently lost. Wrap SOL to wSOL in Phantom first.
                         </p>
                       </div>
                     )}
@@ -1836,7 +1796,7 @@ export default function AccessVault() {
                       <div className="w-full border-2 border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm px-4 py-3 space-y-1.5">
                         <p className="font-body font-bold text-xs text-[#1a1a1a] uppercase tracking-wide">How to add SOL to your vault:</p>
                         <ol className="space-y-1.5">
-                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">1</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Open Phantom or Solflare</span></li>
+                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">1</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Open Phantom</span></li>
                           <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">2</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Use <span className="font-bold">Swap or Wrap</span> to convert SOL to wSOL</span></li>
                           <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">3</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Send <span className="font-bold">wSOL</span> to the address above</span></li>
                         </ol>
@@ -1859,13 +1819,13 @@ export default function AccessVault() {
                         <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAF5] border-b border-[#1a1a1a]/10">
                           <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
                           <span className="font-sketch text-sm text-[#1a1a1a]">Signing wallets</span>
-                          {phantomPubkey && solflarePubkey && !txLoading && (
+                          {phantomPubkey && phantom2Pubkey && !txLoading && (
                             <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both ready</span>
                           )}
                           {txLoading && signingStep && (
                             <span className="ml-auto font-handwritten text-sm text-[#F7931A] animate-pulse">
-                              {signingStep === "phantom" && "Waiting for Phantom..."}
-                              {signingStep === "solflare" && "Waiting for Solflare..."}
+                              {signingStep === "phantom" && "Waiting for Phantom (K1)..."}
+                              {signingStep === "solflare" && "Waiting for Phantom (K2)..."}
                               {signingStep === "broadcasting" && "Broadcasting..."}
                             </span>
                           )}
@@ -1898,21 +1858,21 @@ export default function AccessVault() {
                               ) : signingStep === "broadcasting" ? (
                                 <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                               ) : (
-                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: solflarePubkey ? "#F7931A" : "#1a1a1a", opacity: solflarePubkey ? 1 : 0.15 }} />
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: phantom2Pubkey ? "#F7931A" : "#1a1a1a", opacity: phantom2Pubkey ? 1 : 0.15 }} />
                               )}
-                              <img src="/solflare-logo.png" className="w-5 h-5 rounded-lg flex-shrink-0" alt="Solflare" />
-                              <span className="font-body font-bold text-xs text-[#1a1a1a]/60">Solflare (Key 2)</span>
-                              {txLoading && signingStep === "solflare" && <span className="font-handwritten text-xs text-[#F7931A]">Approve in Solflare</span>}
+                              <img src="/phantom-logo.png" className="w-5 h-5 rounded-lg flex-shrink-0" alt="Phantom K2" />
+                              <span className="font-body font-bold text-xs text-[#1a1a1a]/60">Phantom K2</span>
+                              {txLoading && signingStep === "solflare" && <span className="font-handwritten text-xs text-[#F7931A]">Approve in Phantom (K2)</span>}
                               {signingStep === "broadcasting" && <span className="font-handwritten text-xs text-green-600">Signed</span>}
                             </div>
-                            {solflarePubkey ? (
-                              <span className="font-mono text-xs text-[#1a1a1a]/40">{solflarePubkey.slice(0, 6)}...{solflarePubkey.slice(-4)}</span>
+                            {phantom2Pubkey ? (
+                              <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
                             ) : (
                               <span className="font-handwritten text-xs text-[#1a1a1a]/25">Not connected</span>
                             )}
                           </div>
                           <p className="font-handwritten text-xs text-[#1a1a1a]/25 pt-0.5">
-                            Phantom signs first, then Solflare. Two separate approvals. One transaction on-chain.
+                            Phantom K1 signs first, then Phantom K2. Two separate approvals. One transaction on-chain.
                           </p>
                         </div>
                       </div>
@@ -1956,7 +1916,7 @@ export default function AccessVault() {
                     )}
                     {(() => {
                       const canSendKeys = accessMode === "cold-keys" && hasBothKeys;
-                      const canSendWallets = accessMode === "connect-wallets" && !!(phantomPubkey && solflarePubkey);
+                      const canSendWallets = accessMode === "connect-wallets" && !!(phantomPubkey && phantom2Pubkey);
                       const canSend = canSendKeys || canSendWallets;
                       return (
                         <>
@@ -1997,7 +1957,7 @@ export default function AccessVault() {
                               ? (accessMode === "connect-wallets" ? "Connect both wallets to send" : "Load both cold keys above to send")
                               : txLoading
                                 ? signingStep === "phantom" ? "Step 1/2: Approve in Phantom..."
-                                : signingStep === "solflare" ? "Step 2/2: Approve in Solflare..."
+                                : signingStep === "solflare" ? "Step 2/2: Approve in Phantom (K2)..."
                                 : signingStep === "broadcasting" ? "Broadcasting to Solana..."
                                 : "Signing..."
                               : t.access.sendBtn}
