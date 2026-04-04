@@ -18,6 +18,14 @@ import { useApp } from "@/contexts/AppContext";
 import { useWalletPair } from "@/contexts/WalletPairContext";
 import { useEvmWallet } from "@/contexts/EvmWalletContext";
 import {
+  buildSafeTx,
+  buildTypedData,
+  encodeERC20Transfer,
+  packSignatures,
+  encodeExecTransaction,
+  parseTokenAmount,
+} from "@/lib/safeExec";
+import {
   AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { QRCodeSVG } from "qrcode.react";
@@ -77,6 +85,7 @@ export default function AccessVault() {
     error1: evmError1, error2: evmError2,
     connectK1, connectK2,
     disconnectK1, disconnectK2,
+    signTypedDataK1, signTypedDataK2,
   } = useEvmWallet();
 
   const [accessMode, setAccessMode] = useState<"cold-keys" | "connect-wallets">("cold-keys");
@@ -112,6 +121,17 @@ export default function AccessVault() {
   const [evmError, setEvmError] = useState("");
   const [evmShield, setEvmShield] = useState<{ ethBalance: number; tokens: Array<{ contract: string; name: string; symbol: string; decimals: number; logo: string; balance: number }> } | null>(null);
   const [evmActiveAddress, setEvmActiveAddress] = useState("");
+
+  const [evmSendOpen, setEvmSendOpen] = useState(false);
+  const [evmSendTokenId, setEvmSendTokenId] = useState<string>("eth");
+  const [evmSendRecipient, setEvmSendRecipient] = useState("");
+  const [evmSendAmount, setEvmSendAmount] = useState("");
+  const [evmSendNonce, setEvmSendNonce] = useState<string | null>(null);
+  const [evmSig1, setEvmSig1] = useState<string | null>(null);
+  const [evmSig2, setEvmSig2] = useState<string | null>(null);
+  const [evmSendStatus, setEvmSendStatus] = useState<"idle" | "fetchNonce" | "signing1" | "signing2" | "executing" | "done" | "error">("idle");
+  const [evmSendTxHash, setEvmSendTxHash] = useState("");
+  const [evmSendError, setEvmSendError] = useState("");
 
   const [chartData, setChartData] = useState<{ time: number; price: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
@@ -1162,12 +1182,280 @@ export default function AccessVault() {
               </div>
             )}
 
-            {/* Phase 4 notice */}
-            <div className="border border-dashed border-[#F7931A]/40 rounded-sm px-4 py-3 bg-[#F7931A]/4 text-center">
-              <p className="font-handwritten text-sm text-[#1a1a1a]/50">
-                EVM vault creation and Send via Gnosis Safe — coming in Phase 4.
-              </p>
-            </div>
+            {/* EVM SEND PANEL */}
+            {!evmSendOpen ? (
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setEvmSendOpen(true);
+                    setEvmSendStatus("idle");
+                    setEvmSig1(null);
+                    setEvmSig2(null);
+                    setEvmSendTxHash("");
+                    setEvmSendError("");
+                    setEvmSendNonce(null);
+                  }}
+                  className="btn-sketch text-base py-3 px-8"
+                >
+                  Send from Vault
+                </button>
+              </div>
+            ) : (
+              <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
+                {/* Send header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#1a1a1a]/10 bg-[#FAFAF5]">
+                  <span className="font-sketch text-base text-[#1a1a1a]">Send from Vault</span>
+                  <button
+                    onClick={() => { setEvmSendOpen(false); setEvmSendStatus("idle"); }}
+                    className="font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors"
+                  >
+                    cancel
+                  </button>
+                </div>
+
+                {evmSendStatus === "done" ? (
+                  <div className="px-4 py-6 text-center space-y-3">
+                    <div className="font-sketch text-2xl text-[#1a1a1a]">Sent!</div>
+                    <p className="font-handwritten text-sm text-[#1a1a1a]/50">Transaction submitted on-chain.</p>
+                    <a
+                      href={`https://etherscan.io/tx/${evmSendTxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block font-body font-bold text-sm text-[#F7931A] hover:underline"
+                    >
+                      View on Etherscan ↗
+                    </a>
+                    <div>
+                      <button
+                        onClick={() => { setEvmSendStatus("idle"); setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); setEvmSendRecipient(""); setEvmSendAmount(""); }}
+                        className="btn-sketch-outline text-sm py-2 px-5 bg-white mt-2"
+                      >
+                        Send another
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-4 py-4 space-y-4">
+                    {/* K1/K2 connect check */}
+                    {(!evmAddress1 || !evmAddress2) && (
+                      <div className="space-y-2">
+                        <p className="font-handwritten text-sm text-[#1a1a1a]/50">Both K1 and K2 must be connected to sign a send transaction.</p>
+                        {!evmAddress1 && (
+                          <button onClick={connectK1} disabled={evmConnecting1} className="btn-sketch-outline w-full text-sm py-2 bg-white">
+                            {evmConnecting1 ? "Connecting..." : "Connect K1 (MetaMask)"}
+                          </button>
+                        )}
+                        {evmAddress1 && !evmAddress2 && (
+                          <button onClick={connectK2} disabled={evmConnecting2} className="btn-sketch-outline w-full text-sm py-2 bg-white">
+                            {evmConnecting2 ? "Connecting..." : "Connect K2 (MetaMask)"}
+                          </button>
+                        )}
+                        {evmError1 && <p className="font-handwritten text-xs text-red-500">{evmError1}</p>}
+                        {evmError2 && <p className="font-handwritten text-xs text-red-500">{evmError2}</p>}
+                      </div>
+                    )}
+
+                    {evmAddress1 && evmAddress2 && (
+                      <>
+                        {/* Token selector */}
+                        <div>
+                          <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">Token to Send</label>
+                          <select
+                            value={evmSendTokenId}
+                            onChange={(e) => { setEvmSendTokenId(e.target.value); setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); }}
+                            disabled={evmSendStatus !== "idle"}
+                            className="w-full border-2 border-[#1a1a1a] rounded-sm px-3 py-2 font-body text-sm bg-white disabled:opacity-40"
+                          >
+                            <option value="eth">ETH (Ether)</option>
+                            {evmShield && evmShield.tokens.map((tok) => (
+                              <option key={tok.contract} value={tok.contract}>
+                                {tok.symbol} — {tok.balance.toLocaleString(undefined, { maximumFractionDigits: 6 })} available
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Recipient */}
+                        <div>
+                          <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">Recipient Address</label>
+                          <input
+                            type="text"
+                            placeholder="0x..."
+                            value={evmSendRecipient}
+                            onChange={(e) => { setEvmSendRecipient(e.target.value); setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); }}
+                            disabled={evmSendStatus !== "idle"}
+                            className="w-full border-2 border-[#1a1a1a] rounded-sm px-3 py-2 font-mono text-sm bg-white placeholder:text-[#1a1a1a]/20 disabled:opacity-40"
+                          />
+                        </div>
+
+                        {/* Amount */}
+                        <div>
+                          <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">Amount</label>
+                          <input
+                            type="number"
+                            placeholder="0.0"
+                            min="0"
+                            step="any"
+                            value={evmSendAmount}
+                            onChange={(e) => { setEvmSendAmount(e.target.value); setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); }}
+                            disabled={evmSendStatus !== "idle"}
+                            className="w-full border-2 border-[#1a1a1a] rounded-sm px-3 py-2 font-body text-sm bg-white disabled:opacity-40"
+                          />
+                        </div>
+
+                        {evmSendError && (
+                          <p className="font-handwritten text-sm text-red-500">{evmSendError}</p>
+                        )}
+
+                        {/* Step 1: fetch nonce + K1 sign */}
+                        {!evmSig1 && (
+                          <button
+                            disabled={!evmSendRecipient || !evmSendAmount || evmSendStatus === "fetchNonce" || evmSendStatus === "signing1"}
+                            onClick={async () => {
+                              setEvmSendError("");
+                              if (!/^0x[0-9a-fA-F]{40}$/.test(evmSendRecipient)) {
+                                setEvmSendError("Invalid recipient address.");
+                                return;
+                              }
+                              const amt = parseFloat(evmSendAmount);
+                              if (isNaN(amt) || amt <= 0) {
+                                setEvmSendError("Invalid amount.");
+                                return;
+                              }
+                              try {
+                                setEvmSendStatus("fetchNonce");
+                                const r = await fetch(`/api/evm/vault-info?address=${encodeURIComponent(evmActiveAddress)}`);
+                                const d = await r.json() as { nonce?: string; error?: string };
+                                if (!r.ok || d.error) throw new Error(d.error || "Failed to fetch nonce.");
+                                const nonce = d.nonce!;
+                                setEvmSendNonce(nonce);
+
+                                const isEth = evmSendTokenId === "eth";
+                                const decimals = isEth ? 18 : (evmShield?.tokens.find(t => t.contract === evmSendTokenId)?.decimals ?? 18);
+                                const amountBig = parseTokenAmount(evmSendAmount, decimals);
+                                const txTo = isEth ? evmSendRecipient : evmSendTokenId;
+                                const txValue = isEth ? amountBig : 0n;
+                                const txData = isEth ? "0x" : encodeERC20Transfer(evmSendRecipient, amountBig);
+
+                                const safeTx = buildSafeTx({ to: txTo, value: txValue, data: txData, nonce });
+                                const typedData = buildTypedData(evmActiveAddress, 1, safeTx);
+
+                                setEvmSendStatus("signing1");
+                                const sig1 = await signTypedDataK1(typedData);
+                                setEvmSig1(sig1);
+                                setEvmSendStatus("idle");
+                              } catch (e: unknown) {
+                                setEvmSendError((e as Error).message || "Signing failed.");
+                                setEvmSendStatus("idle");
+                              }
+                            }}
+                            className="w-full py-3 border-2 border-[#1a1a1a] rounded-sm font-sketch text-base bg-white hover:bg-[#FAFAF5] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            {evmSendStatus === "fetchNonce" ? "Fetching nonce..." : evmSendStatus === "signing1" ? "Waiting for K1 signature..." : "Step 1 — Sign with K1"}
+                          </button>
+                        )}
+
+                        {/* K1 signed indicator */}
+                        {evmSig1 && (
+                          <div className="flex items-center gap-2 px-3 py-2 border border-green-300 bg-green-50 rounded-sm">
+                            <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-green-600 flex-shrink-0"><path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span className="font-handwritten text-sm text-green-700">K1 signed</span>
+                            <button onClick={() => { setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); setEvmSendStatus("idle"); }} className="ml-auto font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500">redo</button>
+                          </div>
+                        )}
+
+                        {/* Step 2: K2 sign */}
+                        {evmSig1 && !evmSig2 && (
+                          <button
+                            disabled={evmSendStatus === "signing2"}
+                            onClick={async () => {
+                              setEvmSendError("");
+                              try {
+                                const isEth = evmSendTokenId === "eth";
+                                const decimals = isEth ? 18 : (evmShield?.tokens.find(t => t.contract === evmSendTokenId)?.decimals ?? 18);
+                                const amountBig = parseTokenAmount(evmSendAmount, decimals);
+                                const txTo = isEth ? evmSendRecipient : evmSendTokenId;
+                                const txValue = isEth ? amountBig : 0n;
+                                const txData = isEth ? "0x" : encodeERC20Transfer(evmSendRecipient, amountBig);
+
+                                const safeTx = buildSafeTx({ to: txTo, value: txValue, data: txData, nonce: evmSendNonce! });
+                                const typedData = buildTypedData(evmActiveAddress, 1, safeTx);
+
+                                setEvmSendStatus("signing2");
+                                const sig2 = await signTypedDataK2(typedData);
+                                setEvmSig2(sig2);
+                                setEvmSendStatus("idle");
+                              } catch (e: unknown) {
+                                setEvmSendError((e as Error).message || "K2 signing failed.");
+                                setEvmSendStatus("idle");
+                              }
+                            }}
+                            className="w-full py-3 border-2 border-[#F7931A] rounded-sm font-sketch text-base bg-white hover:bg-[#F7931A]/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            {evmSendStatus === "signing2" ? "Waiting for K2 signature..." : "Step 2 — Sign with K2"}
+                          </button>
+                        )}
+
+                        {/* K2 signed indicator */}
+                        {evmSig2 && (
+                          <div className="flex items-center gap-2 px-3 py-2 border border-green-300 bg-green-50 rounded-sm">
+                            <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-green-600 flex-shrink-0"><path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span className="font-handwritten text-sm text-green-700">K2 signed</span>
+                          </div>
+                        )}
+
+                        {/* Step 3: Execute */}
+                        {evmSig1 && evmSig2 && (
+                          <>
+                            <div className="flex items-center gap-2 px-3 py-2 border border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm">
+                              <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-[#1a1a1a]/40 flex-shrink-0"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                              <span className="font-handwritten text-xs text-[#1a1a1a]/40">K1 pays execution gas from MetaMask wallet (not the vault).</span>
+                            </div>
+                            <button
+                              disabled={evmSendStatus === "executing"}
+                              onClick={async () => {
+                                setEvmSendError("");
+                                try {
+                                  const isEth = evmSendTokenId === "eth";
+                                  const decimals = isEth ? 18 : (evmShield?.tokens.find(t => t.contract === evmSendTokenId)?.decimals ?? 18);
+                                  const amountBig = parseTokenAmount(evmSendAmount, decimals);
+                                  const txTo = isEth ? evmSendRecipient : evmSendTokenId;
+                                  const txValue = isEth ? amountBig : 0n;
+                                  const txData = isEth ? "0x" : encodeERC20Transfer(evmSendRecipient, amountBig);
+
+                                  const safeTx = buildSafeTx({ to: txTo, value: txValue, data: txData, nonce: evmSendNonce! });
+                                  const packed = packSignatures(evmSig1!, evmAddress1!, evmSig2!, evmAddress2!);
+                                  const calldata = encodeExecTransaction(safeTx, packed);
+
+                                  setEvmSendStatus("executing");
+                                  const txHash = await window.ethereum!.request({
+                                    method: "eth_sendTransaction",
+                                    params: [{
+                                      from: evmAddress1,
+                                      to: evmActiveAddress,
+                                      data: calldata,
+                                      gas: "0x7A120",
+                                    }],
+                                  }) as string;
+                                  setEvmSendTxHash(txHash);
+                                  setEvmSendStatus("done");
+                                } catch (e: unknown) {
+                                  setEvmSendError((e as Error).message || "Execution failed.");
+                                  setEvmSendStatus("idle");
+                                }
+                              }}
+                              className="btn-sketch w-full text-lg py-4"
+                            >
+                              {evmSendStatus === "executing" ? "Broadcasting..." : "Step 3 — Execute Transaction"}
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ) : (
