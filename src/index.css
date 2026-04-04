@@ -69,8 +69,8 @@
   --sidebar-accent-foreground: 220 15% 20%;
   --sidebar-ring: 25 90% 52%;
 
-  --app-font-sans: 'Patrick Hand', sans-serif;
-  --app-font-serif: 'Caveat', cursive;
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-serif: 'Inter', sans-serif;
   --app-font-mono: 'Courier New', Courier, monospace;
   --radius: .5rem;
 }
@@ -83,10 +83,10 @@
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Patrick Hand', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
   h1, h2, h3 {
-    font-family: 'Permanent Marker', cursive;
+    font-family: 'Inter', sans-serif;
   }
 }
 
@@ -94,16 +94,14 @@
 @layer utilities {
 
   .font-sketch {
-    font-family: 'Permanent Marker', cursive;
+    font-family: 'Inter', sans-serif;
   }
   .font-handwritten {
-    font-family: 'Caveat', cursive;
-    font-weight: 700;
-    font-size: 1.15em;
-    letter-spacing: 0.01em;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
   }
   .font-body {
-    font-family: 'Patrick Hand', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
 
   /* Rough pencil card border */
@@ -141,7 +139,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Permanent Marker', cursive;
+    font-family: 'Inter', sans-serif;
     border: 2.5px solid #1a1a1a;
     box-shadow: 4px 4px 0px #1a1a1a;
     background: #F7931A;
@@ -163,7 +161,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Permanent Marker', cursive;
+    font-family: 'Inter', sans-serif;
     border: 2.5px solid #1a1a1a;
     box-shadow: 4px 4px 0px #1a1a1a;
     background: transparent;
@@ -192,13 +190,13 @@
   /* Arrow doodle */
   .arrow-doodle::after {
     content: ' →';
-    font-family: 'Caveat', cursive;
+    font-family: 'Inter', sans-serif;
     font-size: 1.2em;
   }
 
   /* Rotated badge */
   .badge-sketch {
-    font-family: 'Caveat', cursive;
+    font-family: 'Inter', sans-serif;
     font-weight: 700;
     font-size: 0.8rem;
     background: #FFE566;
@@ -210,7 +208,7 @@
   }
 
   .badge-sketch-orange {
-    font-family: 'Caveat', cursive;
+    font-family: 'Inter', sans-serif;
     font-weight: 700;
     font-size: 0.8rem;
     background: #F7931A;
@@ -235,7 +233,7 @@
     border: 2px solid #1a1a1a;
     border-radius: 2px;
     background: #fff;
-    font-family: 'Patrick Hand', sans-serif;
+    font-family: 'Inter', sans-serif;
     padding: 0.75rem 1rem;
     width: 100%;
     outline: none;
@@ -269,7 +267,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Permanent Marker', cursive;
+    font-family: 'Inter', sans-serif;
     font-size: 1.25rem;
     background: #F7931A;
     color: #fff;
@@ -279,7 +277,7 @@
 
   /* Nav link style */
   .nav-link {
-    font-family: 'Caveat', cursive;
+    font-family: 'Inter', sans-serif;
     font-weight: 600;
     font-size: 1.1rem;
     color: #1a1a1a;
