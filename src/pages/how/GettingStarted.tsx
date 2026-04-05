@@ -1,8 +1,7 @@
 import SubpageLayout from "@/components/SubpageLayout";
 import { useApp } from "@/contexts/AppContext";
 import { SketchTwoKeys, SketchShield, SketchKey, SketchCheckmark, SketchCoin } from "@/components/sketches";
-
-const SOL_LOGO = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
+import { ChainLogos } from "@/components/ChainLogos";
 
 const HeroDecor = () => (
   <svg viewBox="0 0 900 280" fill="none" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
@@ -48,7 +47,7 @@ export default function GettingStarted() {
 
   const steps = [
     { n: "01", icon: <SketchTwoKeys className="w-10 h-10" />, title: t.how.step1title, desc: t.how.step1desc, note: t.how.step1note },
-    { n: "02", icon: <img src={SOL_LOGO} alt="SOL" className="w-10 h-10 rounded-full" />, title: t.how.step2title, desc: t.how.step2desc, note: t.how.step2note },
+    { n: "02", icon: <ChainLogos size={40} />, title: t.how.step2title, desc: t.how.step2desc, note: t.how.step2note },
     { n: "03", icon: <SketchShield className="w-10 h-10" />, title: t.how.step3title, desc: t.how.step3desc, note: t.how.step3note },
   ];
 
@@ -121,9 +120,10 @@ export default function GettingStarted() {
               <ul className="space-y-2">
                 {[
                   "A browser with internet access",
-                  "A small amount of SOL for transaction fees (less than 0.01)",
-                  "Two separate devices or storage locations for your keys",
-                  "5 to 10 minutes for initial setup and understanding",
+                  "Gas fees covered by BITQ, free during beta",
+                  "For cold key mode: both private keys stored securely in separate locations",
+                  "For Solana wallet connect: Phantom and Solflare browser extensions",
+                  "For Ethereum wallet connect: two MetaMask accounts (separate browser profiles recommended)",
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span className="text-[#F7931A] mt-0.5">+</span>
@@ -140,7 +140,7 @@ export default function GettingStarted() {
                   "An email address or phone number",
                   "Identity verification or KYC",
                   "A trusted third party or custodian",
-                  "Any browser extension or app installation",
+                  "Any SOL or ETH for gas during beta",
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span style={{ color: "#ef4444" }} className="mt-0.5">x</span>
@@ -155,7 +155,7 @@ export default function GettingStarted() {
         <div className={`border-l-4 border-[#F7931A] pl-5 py-3 ${dark ? "bg-[#F7931A]/5" : "bg-[#FFF8EE]"} pr-5`}>
           <div className="font-handwritten text-xl text-[#F7931A] mb-1">Important</div>
           <p className={`font-body font-bold text-sm leading-relaxed ${muted}`}>
-            Save both private keys immediately after generation. They are shown once. There is no recovery mechanism if you lose them. Write them on paper and store them in physically separate, secure locations.
+            If you use cold key mode: save both private keys immediately after creation. They are shown once. There is no recovery mechanism. Write them on paper and store them in physically separate, secure locations. If you use wallet connect mode: your Phantom, Solflare, or MetaMask wallets are responsible for key security. Treat them accordingly.
           </p>
         </div>
       </div>
