@@ -23,6 +23,16 @@
     <meta name="twitter:description" content="Both keys must sign. No exceptions. Not negotiable. The math said so." />
     <meta name="twitter:image" content="/opengraph.jpg" />
 
+    <script>
+      (function () {
+        var r = sessionStorage.getItem('spa_redirect');
+        if (r) {
+          sessionStorage.removeItem('spa_redirect');
+          var u = new URL(r);
+          history.replaceState(null, '', u.pathname + u.search + u.hash);
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
