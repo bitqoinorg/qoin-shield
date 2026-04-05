@@ -154,8 +154,8 @@ export default function KeyManagement() {
             <div className={`font-sketch text-xl mb-4 ${text}`}>Key 1 and Key 2 Strategy</div>
             <div className="space-y-4">
               {[
-                { icon: <SketchKey className="w-10 h-10" />, title: "Key 1 Location", desc: "Your primary key. Keep it accessible enough to use when needed. A locked drawer at home, or a hardware key stored in a fireproof safe, works well." },
-                { icon: <SketchKey className="w-10 h-10" />, title: "Key 2 Location", desc: "Your secondary key. This should be harder to access. A bank safety deposit box, a trusted family member's secure storage, or an offline device in a separate city." },
+                { icon: <SketchKey className="w-10 h-10" />, title: "Key 1", desc: "Cold key mode: your primary private key string. Keep it accessible but secure. A locked drawer or fireproof safe works well. Wallet connect mode: Phantom (Solana) or your first MetaMask account (Ethereum)." },
+                { icon: <SketchKey className="w-10 h-10" />, title: "Key 2", desc: "Cold key mode: your secondary private key string. Store it separately from Key 1. Good options include a bank safety deposit box, a trusted family member, or an offline device in another location. Wallet connect mode: Solflare (Solana) or your second MetaMask account (Ethereum)." },
               ].map((item) => (
                 <div key={item.title} className={`border-l-2 border-[#F7931A]/40 pl-4 pb-3 last:pb-0`}>
                   <div className="flex items-center gap-2 mb-1">
