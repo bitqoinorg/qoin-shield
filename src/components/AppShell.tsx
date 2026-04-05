@@ -24,8 +24,8 @@ function WalletIcon({ active }: { active: boolean }) {
 }
 
 const navItems = [
-  { path: "/qoin/create", label: "Create Qoin", shortLabel: "Create", Icon: PlusIcon },
-  { path: "/qoin/open", label: "My Qoin", shortLabel: "My Qoin", Icon: WalletIcon },
+  { path: "/qoin/create", label: "Create Qoin Shield", shortLabel: "Create", Icon: PlusIcon },
+  { path: "/qoin/open", label: "My Qoin Shield", shortLabel: "My Qoin Shield", Icon: WalletIcon },
 ];
 
 
@@ -100,7 +100,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F7931A] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#F7931A]"></span>
               </span>
-              <span className="font-sketch text-sm tracking-tight">Solana Mainnet</span>
+              <span className="font-sketch text-sm tracking-tight">EVM and Solana</span>
             </div>
             <div className="flex items-center gap-1.5 mb-1">
               <SketchShield className="w-3.5 h-3.5 opacity-50 flex-shrink-0" />
@@ -166,7 +166,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F7931A] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F7931A]"></span>
               </span>
-              <span className="font-handwritten text-sm text-white/40">Solana Mainnet</span>
+              <span className="font-handwritten text-sm text-white/40">EVM and Solana</span>
             </div>
           </div>
         </div>
