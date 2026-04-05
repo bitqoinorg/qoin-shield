@@ -25,6 +25,7 @@ import {
   encodeExecTransaction,
   parseTokenAmount,
 } from "@/lib/safeExec";
+import { isValidEvmPrivateKey, evmSignTypedData, evmAddressFromPrivateKey } from "@/lib/evm";
 import {
   AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
@@ -72,6 +73,25 @@ type TxRecord = {
 export default function AccessVault() {
   const [, navigate] = useLocation();
   const { t, dark, chain, setChain } = useApp();
+
+  const dm = {
+    topBar: dark ? "bg-[#0f0f0f] border-[#FAFAF5]/10" : "bg-white border-[#1a1a1a]",
+    text: dark ? "text-[#FAFAF5]" : "text-[#1a1a1a]",
+    muted: dark ? "text-[#FAFAF5]/50" : "text-[#1a1a1a]/50",
+    faint: dark ? "text-[#FAFAF5]/30" : "text-[#1a1a1a]/30",
+    faint40: dark ? "text-[#FAFAF5]/40" : "text-[#1a1a1a]/40",
+    sep: dark ? "text-[#FAFAF5]/20" : "text-[#1a1a1a]/20",
+    card: dark ? "bg-[#111111]" : "bg-white",
+    cardBorder: dark ? "border-[#FAFAF5]/8" : "border-[#1a1a1a]/10",
+    sidebar: dark ? "bg-[#0a0a0a] border-[#FAFAF5]/8" : "bg-[#FAFAF5] border-[#1a1a1a]/15",
+    sidebarSelected: dark ? "bg-[#F7931A]/10 border-l-4 border-l-[#F7931A]" : "bg-[#F7931A]/10 border-l-4 border-l-[#F7931A]",
+    sidebarHover: dark ? "border-l-4 border-l-transparent hover:bg-[#FAFAF5]/5" : "border-l-4 border-l-transparent hover:bg-[#FAFAF5]",
+    iconCircle: dark ? "bg-[#FAFAF5]/10" : "bg-[#1a1a1a]/10",
+    inputBg: dark ? "bg-[#111] border-[#FAFAF5]/15 text-[#FAFAF5] placeholder-[#FAFAF5]/30" : "bg-white border-[#1a1a1a]/20 text-[#1a1a1a] placeholder-[#1a1a1a]/30",
+    sectionHead: dark ? "bg-[#FAFAF5]/5 border-[#FAFAF5]/8" : "bg-[#FAFAF5] border-[#1a1a1a]/10",
+    btnOutline: dark ? "border-[#FAFAF5]/20 text-[#FAFAF5]/60 hover:bg-[#FAFAF5]/5" : "border-[#1a1a1a]/20 text-[#1a1a1a]/60 hover:bg-[#FAFAF5]",
+    divider: dark ? "border-[#FAFAF5]/8" : "border-[#1a1a1a]/10",
+  };
   const {
     phantomPubkey, phantom2Pubkey,
     phantomConnecting, phantom2Connecting,
@@ -102,7 +122,7 @@ export default function AccessVault() {
 
   const [tokenMeta, setTokenMeta] = useState<Record<string, { name: string; symbol: string; image: string }>>({});
 
-  const [activeTab, setActiveTab] = useState<"receive" | "send" | null>(null);
+  const [activeTab, setActiveTab] = useState<"receive" | "send" | "swap" | null>(null);
   const [copiedAddr, setCopiedAddr] = useState<string | null>(null);
 
   const [pk1, setPk1] = useState("");
@@ -124,11 +144,14 @@ export default function AccessVault() {
   const [slotsDone, setSlotsDone] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [evmError, setEvmError] = useState("");
-  const [evmShield, setEvmShield] = useState<{ ethBalance: number; tokens: Array<{ contract: string; name: string; symbol: string; decimals: number; logo: string; balance: number }> } | null>(null);
+  const [evmShield, setEvmShield] = useState<{ ethBalance: number; ethLogo: string; tokens: Array<{ contract: string; name: string; symbol: string; decimals: number; logo: string; balance: number }> } | null>(null);
+  const [evmPrices, setEvmPrices] = useState<Record<string, { price: number; change24h: number | null }>>({});
+  const [evmChartData, setEvmChartData] = useState<{ time: number; price: number }[]>([]);
+  const [evmChartLoading, setEvmChartLoading] = useState(false);
+  const [evmChartChange, setEvmChartChange] = useState<number | null>(null);
   const [evmActiveAddress, setEvmActiveAddress] = useState("");
 
-  const [evmSendOpen, setEvmSendOpen] = useState(false);
-  const [evmSendTokenId, setEvmSendTokenId] = useState<string>("eth");
+  const [evmAddrCopied, setEvmAddrCopied] = useState(false);
   const [evmSendRecipient, setEvmSendRecipient] = useState("");
   const [evmSendAmount, setEvmSendAmount] = useState("");
   const [evmSendNonce, setEvmSendNonce] = useState<string | null>(null);
@@ -137,8 +160,14 @@ export default function AccessVault() {
   const [evmSendStatus, setEvmSendStatus] = useState<"idle" | "fetchNonce" | "signing1" | "signing2" | "executing" | "done" | "error">("idle");
   const [evmSendTxHash, setEvmSendTxHash] = useState("");
   const [evmSendError, setEvmSendError] = useState("");
+  const [evmPk1, setEvmPk1] = useState("");
+  const [evmPk2, setEvmPk2] = useState("");
+  const [showEvmPk1, setShowEvmPk1] = useState(false);
+  const [showEvmPk2, setShowEvmPk2] = useState(false);
+  const [evmColdSig1Addr, setEvmColdSig1Addr] = useState<string | null>(null);
+  const [evmColdSig2Addr, setEvmColdSig2Addr] = useState<string | null>(null);
   const [evmSidebarSelected, setEvmSidebarSelected] = useState<string>("eth");
-  const [evmActiveTab, setEvmActiveTab] = useState<"receive" | "send" | null>(null);
+  const [evmActiveTab, setEvmActiveTab] = useState<"receive" | "send" | "swap" | null>(null);
 
   const [chartData, setChartData] = useState<{ time: number; price: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
@@ -151,6 +180,7 @@ export default function AccessVault() {
   const [historyTab, setHistoryTab] = useState<"received" | "sent">("received");
   const [newDepositAlert, setNewDepositAlert] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const evmPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [walletMismatch, setWalletMismatch] = useState<string | null>(null);
 
@@ -171,6 +201,10 @@ export default function AccessVault() {
   const pk1Valid = isValidPrivateKey(pk1.trim());
   const pk2Valid = isValidPrivateKey(pk2.trim());
   const hasBothKeys = pk1Valid && pk2Valid;
+
+  const evmPk1Valid = isValidEvmPrivateKey(evmPk1);
+  const evmPk2Valid = isValidEvmPrivateKey(evmPk2);
+  const hasBothEvmColdKeys = evmPk1Valid && evmPk2Valid;
 
   // Track the last pubkey that loaded the current shield so we can detect account switches
   const loadedForPubkeyRef = useRef<string | null>(null);
@@ -235,6 +269,41 @@ export default function AccessVault() {
       setEvmConnectVaultInput(cached.vaultAddress);
     }
   }, [evmAddress1, accessMode]);
+
+  // Auto-open vault from URL params (e.g. navigated from GenerateVault after creation)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vaultParam = params.get("vault");
+    const chainParam = params.get("chain") as "evm" | "solana" | null;
+    if (!vaultParam) return;
+
+    if (chainParam === "evm" && /^0x[0-9a-fA-F]{40}$/.test(vaultParam)) {
+      setChain("evm");
+      setEvmAddressInput(vaultParam);
+      setEvmShield(null);
+      setEvmLoading(true);
+      fetch(`/api/evm/balance?address=${encodeURIComponent(vaultParam)}`)
+        .then(r => r.json())
+        .then(data => { setEvmShield(data); setEvmActiveAddress(vaultParam); })
+        .catch(e => setEvmError((e as Error).message || "Failed to load."))
+        .finally(() => setEvmLoading(false));
+    } else if (chainParam === "solana" && vaultParam) {
+      setChain("solana");
+      setShieldInput(vaultParam);
+      setShield(null);
+      setLoading(true);
+      fetch(`/api/qoin/balance?address=${encodeURIComponent(vaultParam)}`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(data => {
+          setShield(data as ShieldData);
+          setActiveShieldAddress(vaultParam);
+          setShieldInput(vaultParam);
+        })
+        .catch(e => setError((e as Error).message || "Failed to load."))
+        .finally(() => setLoading(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const mints = POPULAR_TOKENS.map((t) => t.mint).join(",");
@@ -351,6 +420,42 @@ export default function AccessVault() {
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [activeShieldAddress, sidebarSelected, getTxAddr]);
 
+  useEffect(() => {
+    if (!evmActiveAddress) return;
+    const poll = async () => {
+      try {
+        const data = await fetchEvmBalance(evmActiveAddress);
+        setEvmShield(data);
+      } catch { /* ignore */ }
+    };
+    if (evmPollingRef.current) clearInterval(evmPollingRef.current);
+    evmPollingRef.current = setInterval(poll, 10000);
+    return () => { if (evmPollingRef.current) clearInterval(evmPollingRef.current); };
+  }, [evmActiveAddress]);
+
+  useEffect(() => {
+    if (!evmActiveAddress) return;
+    fetch("/api/evm/prices")
+      .then((r) => r.json())
+      .then((d: Record<string, { price: number; change24h: number | null }>) => setEvmPrices(d))
+      .catch(() => {});
+  }, [evmActiveAddress]);
+
+  useEffect(() => {
+    if (!evmActiveAddress) return;
+    const token = evmSidebarSelected === "eth" ? "eth" : evmSidebarSelected.toLowerCase();
+    setEvmChartLoading(true);
+    setEvmChartData([]);
+    fetch(`/api/evm/price-chart?token=${encodeURIComponent(token)}&days=7`)
+      .then((r) => r.json())
+      .then((d: { prices?: { time: number; price: number }[]; change24h?: number | null }) => {
+        setEvmChartData(d.prices ?? []);
+        setEvmChartChange(d.change24h ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setEvmChartLoading(false));
+  }, [evmActiveAddress, evmSidebarSelected]);
+
   const selHeldForSync = shield?.tokens.find((t) => t.mint === sidebarSelected) ?? null;
   useEffect(() => {
     if (selHeldForSync) setSelectedToken(selHeldForSync);
@@ -377,14 +482,14 @@ export default function AccessVault() {
   async function fetchEvmBalance(addr: string) {
     const res = await fetch(`/api/evm/balance?address=${encodeURIComponent(addr)}`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to load EVM balance.");
+    if (!res.ok) throw new Error(data.error || "Failed to load Ethereum balance.");
     return data;
   }
 
   async function handleEvmView() {
     const raw = evmAddressInput.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(raw)) {
-      setEvmError("Enter a valid EVM address (0x...).");
+      setEvmError("Enter a valid Ethereum address (0x...).");
       return;
     }
     setEvmError("");
@@ -747,29 +852,22 @@ export default function AccessVault() {
     <div className={`flex flex-col h-screen overflow-hidden ${dark ? "bg-[#0f0f0f]" : "bg-[#FAFAF5]"}`}>
 
       {/* TOP BAR always visible */}
-      <div className="flex-shrink-0 border-b-2 border-[#1a1a1a] bg-white px-5 py-3 flex items-center gap-4">
+      <div className={`flex-shrink-0 border-b-2 ${dm.topBar} px-5 py-3 flex items-center gap-4`}>
         <button onClick={() => navigate("/")} className="flex items-center gap-2 flex-shrink-0 group">
-          <SketchShield className="w-7 h-7 group-hover:opacity-70 transition-opacity" />
-          <span className="font-sketch text-lg text-[#1a1a1a]">Qoin</span>
+          <SketchShield className={`w-7 h-7 group-hover:opacity-70 transition-opacity ${dm.text}`} />
+          <span className={`font-sketch text-lg ${dm.text}`}>Qoin</span>
         </button>
 
         {/* Only show address bar + info when vault is loaded */}
         {shield && (
           <>
-            <span className="text-[#1a1a1a]/20 text-lg flex-shrink-0">/</span>
-            <div className="flex-1 flex gap-2 max-w-xl">
-              <input
-                type="text"
-                value={shieldInput}
-                onChange={(e) => { setShieldInput(e.target.value); setError(""); }}
-                onKeyDown={(e) => e.key === "Enter" && handleView()}
-                placeholder="Enter another Qoin address..."
-                className="input-sketch flex-1 text-sm py-1.5 font-mono"
-              />
+            <span className={`${dm.sep} text-lg flex-shrink-0`}>/</span>
+            <div className="flex-1 min-w-0 hidden md:block">
+              <span className={`font-mono text-xs ${dm.faint40} truncate block`}>{activeShieldAddress}</span>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="font-mono text-sm font-bold text-[#1a1a1a]/50 hidden md:inline">
-                {activeShieldAddress.slice(0, 6)}...{activeShieldAddress.slice(-4)}
+              <span className={`font-mono text-sm font-bold ${dm.muted} md:hidden`}>
+                {activeShieldAddress.slice(0, 6)}…{activeShieldAddress.slice(-4)}
               </span>
               <a
                 href={explorerAddressUrl(activeShieldAddress, false)}
@@ -785,11 +883,51 @@ export default function AccessVault() {
                   setAddrCopied(true);
                   setTimeout(() => setAddrCopied(false), 2000);
                 }}
-                className="font-body font-bold text-sm text-[#1a1a1a]/50 hover:text-[#F7931A] transition-colors"
+                className={`font-body font-bold text-sm ${dm.muted} hover:text-[#F7931A] transition-colors`}
               >
                 {addrCopied ? t.access.copied : t.access.copyAddr}
               </button>
-              <span title="Live, auto-refreshing every 5s" className="flex items-center gap-1 font-handwritten text-xs text-[#1a1a1a]/30">
+              <button
+                onClick={() => { setShield(null); setActiveShieldAddress(""); setShieldInput(""); setActiveTab(null); }}
+                className={`font-body font-bold text-sm ${dm.faint} hover:text-red-500 transition-colors`}
+              >Close</button>
+              <span title="Live, auto-refreshing every 5s" className={`flex items-center gap-1 font-handwritten text-xs ${dm.faint}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+                Live
+              </span>
+            </div>
+          </>
+        )}
+        {evmShield && (
+          <>
+            <span className={`${dm.sep} text-lg flex-shrink-0`}>/</span>
+            <div className="flex-1 min-w-0 hidden md:block">
+              <span className={`font-mono text-xs ${dm.faint40} truncate block`}>{evmActiveAddress}</span>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className={`font-mono text-sm font-bold ${dm.muted} md:hidden`}>
+                {evmActiveAddress.slice(0, 6)}…{evmActiveAddress.slice(-4)}
+              </span>
+              <a
+                href={`https://blockchair.com/ethereum/address/${evmActiveAddress}`}
+                target="_blank" rel="noopener noreferrer"
+                className="font-body font-bold text-sm text-[#F7931A] hover:underline"
+              >Blockchair</a>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(evmActiveAddress);
+                  setEvmAddrCopied(true);
+                  setTimeout(() => setEvmAddrCopied(false), 2000);
+                }}
+                className={`font-body font-bold text-sm ${dm.muted} hover:text-[#F7931A] transition-colors`}
+              >
+                {evmAddrCopied ? "Copied!" : "Copy"}
+              </button>
+              <button
+                onClick={() => { setEvmShield(null); setEvmActiveAddress(""); setEvmAddressInput(""); setEvmSidebarSelected("eth"); setEvmActiveTab(null); }}
+                className={`font-body font-bold text-sm ${dm.faint} hover:text-red-500 transition-colors`}
+              >Close</button>
+              <span title="Live, auto-refreshing every 10s" className={`flex items-center gap-1 font-handwritten text-xs ${dm.faint}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
                 Live
               </span>
@@ -803,24 +941,24 @@ export default function AccessVault() {
       {!shield && !evmShield ? (
         /* ── ENTRY SCREEN ── */
         <div className="flex-1 flex flex-col items-center justify-center px-6">
-          <SketchShield className="w-14 h-14 mb-5 opacity-15" />
-          <h1 className="font-sketch text-4xl text-[#1a1a1a] mb-1">{t.access.openBtn}</h1>
-          <p className="font-handwritten text-base text-[#1a1a1a]/40 mb-6">
+          <SketchShield className={`w-14 h-14 mb-5 opacity-15 ${dm.text}`} />
+          <h1 className={`font-sketch text-4xl ${dm.text} mb-1`}>{t.access.openBtn}</h1>
+          <p className={`font-handwritten text-base ${dm.faint40} mb-6`}>
             {t.access.enterKeys}
           </p>
 
           {/* Mode selector */}
           <div className="w-full max-w-md mb-6">
-            <div className="flex border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
+            <div className={`flex border-2 ${dark ? "border-[#FAFAF5]/20" : "border-[#1a1a1a]"} rounded-sm overflow-hidden`}>
               <button
                 onClick={() => { setAccessMode("cold-keys"); setError(""); setEvmError(""); }}
-                className={`flex-1 py-3 font-body font-bold text-sm transition-all ${accessMode === "cold-keys" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
+                className={`flex-1 py-3 font-body font-bold text-sm transition-all ${accessMode === "cold-keys" ? "bg-[#1a1a1a] text-white" : dark ? "text-[#FAFAF5]/50 hover:bg-[#FAFAF5]/5" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
               >
                 Cold Keys
               </button>
               <button
                 onClick={() => { setAccessMode("connect-wallets"); setError(""); setEvmError(""); }}
-                className={`flex-1 py-3 font-body font-bold text-sm transition-all border-l-2 border-[#1a1a1a] ${accessMode === "connect-wallets" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
+                className={`flex-1 py-3 font-body font-bold text-sm transition-all ${dark ? "border-l-2 border-[#FAFAF5]/20" : "border-l-2 border-[#1a1a1a]"} ${accessMode === "connect-wallets" ? "bg-[#1a1a1a] text-white" : dark ? "text-[#FAFAF5]/50 hover:bg-[#FAFAF5]/5" : "text-[#1a1a1a]/50 hover:bg-[#FAFAF5]"}`}
               >
                 Connect Wallets
               </button>
@@ -830,16 +968,16 @@ export default function AccessVault() {
           {/* Cold Keys inline chain selector */}
           {accessMode === "cold-keys" && (
             <div className="w-full max-w-md mb-3">
-              <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-sm font-body font-bold">
+              <div className={`flex border-2 ${dark ? "border-[#FAFAF5]/15" : "border-[#1a1a1a]/20"} rounded-sm overflow-hidden text-sm font-body font-bold`}>
                 <button
                   onClick={() => setChain("evm")}
-                  className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                  className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : dark ? "text-[#FAFAF5]/40 hover:bg-[#FAFAF5]/5" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
                 >
                   EVM
                 </button>
                 <button
                   onClick={() => setChain("solana")}
-                  className={`flex-1 py-2.5 border-l-2 border-[#1a1a1a]/20 transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                  className={`flex-1 py-2.5 ${dark ? "border-l-2 border-[#FAFAF5]/15" : "border-l-2 border-[#1a1a1a]/20"} transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : dark ? "text-[#FAFAF5]/40 hover:bg-[#FAFAF5]/5" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
                 >
                   Solana
                 </button>
@@ -850,8 +988,8 @@ export default function AccessVault() {
           {/* EVM — Direct Address mode */}
           {chain === "evm" && accessMode === "cold-keys" && (
             <div className="w-full max-w-md space-y-3">
-              <p className="font-handwritten text-sm text-[#1a1a1a]/40">
-                Enter any EVM wallet address to inspect its ETH and token balances.
+              <p className={`font-handwritten text-sm ${dm.faint40}`}>
+                Enter your Qoin address to view your ETH and ERC-20 balances.
               </p>
               <input
                 type="text"
@@ -878,16 +1016,16 @@ export default function AccessVault() {
           {/* Connect Wallets inline chain selector */}
           {accessMode === "connect-wallets" && (
             <div className="w-full max-w-md mb-3">
-              <div className="flex border-2 border-[#1a1a1a]/20 rounded-sm overflow-hidden text-sm font-body font-bold">
+              <div className={`flex border-2 ${dark ? "border-[#FAFAF5]/15" : "border-[#1a1a1a]/20"} rounded-sm overflow-hidden text-sm font-body font-bold`}>
                 <button
                   onClick={() => setChain("evm")}
-                  className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                  className={`flex-1 py-2.5 transition-all ${chain === "evm" ? "bg-[#1a1a1a] text-white" : dark ? "text-[#FAFAF5]/40 hover:bg-[#FAFAF5]/5" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
                 >
                   EVM
                 </button>
                 <button
                   onClick={() => setChain("solana")}
-                  className={`flex-1 py-2.5 border-l-2 border-[#1a1a1a]/20 transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                  className={`flex-1 py-2.5 ${dark ? "border-l-2 border-[#FAFAF5]/15" : "border-l-2 border-[#1a1a1a]/20"} transition-all ${chain === "solana" ? "bg-[#1a1a1a] text-white" : dark ? "text-[#FAFAF5]/40 hover:bg-[#FAFAF5]/5" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
                 >
                   Solana
                 </button>
@@ -898,32 +1036,32 @@ export default function AccessVault() {
           {/* EVM — Connect Wallets mode (Dual MetaMask) */}
           {chain === "evm" && accessMode === "connect-wallets" && (
             <div className="w-full max-w-md space-y-4">
-              <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+              <p className={`font-handwritten text-sm ${dm.faint40}`}>
                 Connect two MetaMask accounts as co-signers. Key 1 is used to look up the Qoin address.
               </p>
 
               {/* MetaMask K1 */}
-              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+              <div className={`border-2 ${dark ? "border-[#FAFAF5]/15" : "border-[#1a1a1a]"} rounded-sm overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${dm.cardBorder} ${dm.sectionHead}`}>
                   <div className="flex items-center gap-2">
                     <img src="/metamask-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" alt="MetaMask" />
-                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 1 (MetaMask)</span>
+                    <span className={`font-body font-bold text-sm ${dm.text}`}>Key 1 (MetaMask)</span>
                   </div>
                   {evmAddress1 && (
-                    <span className="font-mono text-xs text-[#1a1a1a]/40">{evmAddress1.slice(0, 6)}...{evmAddress1.slice(-4)}</span>
+                    <span className={`font-mono text-xs ${dm.faint40}`}>{evmAddress1.slice(0, 6)}...{evmAddress1.slice(-4)}</span>
                   )}
                 </div>
                 <div className="px-4 py-3">
                   {evmError1 && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{evmError1}</p>}
                   {evmAddress1 ? (
-                    <button onClick={disconnectK1} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                    <button onClick={disconnectK1} className={`w-full font-body font-bold text-xs py-2 border ${dm.btnOutline} rounded-sm transition-all`}>
                       Disconnect K1
                     </button>
                   ) : (
                     <button
                       onClick={connectK1}
                       disabled={evmConnecting1}
-                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                      className={`w-full font-body font-bold text-sm py-2.5 border-2 ${dark ? "border-[#FAFAF5]/20 bg-transparent text-[#FAFAF5] hover:bg-[#FAFAF5]/10" : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"} rounded-sm transition-all disabled:opacity-40`}
                     >
                       {evmConnecting1 ? "Connecting..." : "Connect MetaMask (Key 1)"}
                     </button>
@@ -932,38 +1070,38 @@ export default function AccessVault() {
               </div>
 
               {/* MetaMask K2 */}
-              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+              <div className={`border-2 ${dark ? "border-[#FAFAF5]/15" : "border-[#1a1a1a]"} rounded-sm overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${dm.cardBorder} ${dm.sectionHead}`}>
                   <div className="flex items-center gap-2">
                     <img src="/metamask-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" alt="MetaMask" />
-                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (MetaMask)</span>
+                    <span className={`font-body font-bold text-sm ${dm.text}`}>Key 2 (MetaMask)</span>
                   </div>
                   {evmAddress2 && (
-                    <span className="font-mono text-xs text-[#1a1a1a]/40">{evmAddress2.slice(0, 6)}...{evmAddress2.slice(-4)}</span>
+                    <span className={`font-mono text-xs ${dm.faint40}`}>{evmAddress2.slice(0, 6)}...{evmAddress2.slice(-4)}</span>
                   )}
                 </div>
                 <div className="px-4 py-3">
                   {evmError2 && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{evmError2}</p>}
                   {evmAddress2 ? (
-                    <button onClick={disconnectK2} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                    <button onClick={disconnectK2} className={`w-full font-body font-bold text-xs py-2 border ${dm.btnOutline} rounded-sm transition-all`}>
                       Disconnect K2
                     </button>
                   ) : (
                     <button
                       onClick={connectK2}
                       disabled={evmConnecting2}
-                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                      className={`w-full font-body font-bold text-sm py-2.5 border-2 ${dark ? "border-[#FAFAF5]/20 bg-transparent text-[#FAFAF5] hover:bg-[#FAFAF5]/10" : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"} rounded-sm transition-all disabled:opacity-40`}
                     >
                       {evmConnecting2 ? "Connecting..." : "Connect MetaMask (Key 2)"}
                     </button>
                   )}
-                  {!evmAddress2 && <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Switch MetaMask account before connecting Key 2.</p>}
+                  {!evmAddress2 && <p className={`font-handwritten text-xs ${dm.faint} mt-1.5`}>Switch MetaMask account before connecting Key 2.</p>}
                 </div>
               </div>
 
               {/* Qoin address input — auto-filled from localStorage if known */}
               <div>
-                <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">
+                <label className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-widest block mb-1.5`}>
                   Qoin Address
                 </label>
                 <input
@@ -976,13 +1114,13 @@ export default function AccessVault() {
                   spellCheck={false}
                 />
                 {!evmConnectVaultInput && evmAddress1 && (
-                  <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1">
+                  <p className={`font-handwritten text-xs ${dm.faint} mt-1`}>
                     No saved Qoin found for this key. Paste your Qoin address above, or{" "}
                     <button type="button" className="text-[#F7931A] underline" onClick={() => navigate("/qoin/create")}>create one</button>.
                   </p>
                 )}
                 {evmConnectVaultInput && !/^0x[0-9a-fA-F]{40}$/.test(evmConnectVaultInput.trim()) && (
-                  <p className="font-handwritten text-xs text-red-500 mt-1">Invalid EVM address format.</p>
+                  <p className="font-handwritten text-xs text-red-500 mt-1">Invalid Ethereum address format.</p>
                 )}
               </div>
 
@@ -1000,7 +1138,7 @@ export default function AccessVault() {
           {/* SOL — Cold Keys mode */}
           {chain === "solana" && accessMode === "cold-keys" && (
             <div className="w-full max-w-md space-y-3">
-              <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+              <p className={`font-handwritten text-sm ${dm.faint40}`}>
                 Paste either Key 1 or Key 2 to find your Qoin.
               </p>
               <input
@@ -1025,7 +1163,7 @@ export default function AccessVault() {
               <div className="text-center pt-1">
                 <button
                   onClick={() => { setShowDirectAddr(v => !v); setError(""); }}
-                  className="font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#F7931A] transition-all"
+                  className={`font-handwritten text-sm ${dm.muted} hover:text-[#F7931A] transition-all`}
                 >
                   {showDirectAddr ? "Hide direct entry" : "Have your Qoin address? Enter directly →"}
                 </button>
@@ -1059,32 +1197,32 @@ export default function AccessVault() {
           {chain === "solana" && accessMode === "connect-wallets" && (
             <div className="w-full max-w-md space-y-4">
 
-              <p className="font-handwritten text-sm text-[#1a1a1a]/40">
+              <p className={`font-handwritten text-sm ${dm.faint40}`}>
                 Connect Phantom as Key 1 and Solflare as Key 2. Both must be installed.
               </p>
 
               {/* Key 1 (always Phantom) */}
-              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+              <div className={`border-2 ${dark ? "border-[#FAFAF5]/15" : "border-[#1a1a1a]"} rounded-sm overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${dm.cardBorder} ${dm.sectionHead}`}>
                   <div className="flex items-center gap-2">
                     <img src="/phantom-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: phantomPubkey ? 1 : 0.6 }} alt="Phantom" />
-                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 1 (Phantom)</span>
+                    <span className={`font-body font-bold text-sm ${dm.text}`}>Key 1 (Phantom)</span>
                   </div>
                   {phantomPubkey && (
-                    <span className="font-mono text-xs text-[#1a1a1a]/40">{phantomPubkey.slice(0, 6)}...{phantomPubkey.slice(-4)}</span>
+                    <span className={`font-mono text-xs ${dm.faint40}`}>{phantomPubkey.slice(0, 6)}...{phantomPubkey.slice(-4)}</span>
                   )}
                 </div>
                 <div className="px-4 py-3">
                   {phantomError && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantomError}</p>}
                   {phantomPubkey ? (
-                    <button onClick={disconnectPhantom} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                    <button onClick={disconnectPhantom} className={`w-full font-body font-bold text-xs py-2 border ${dm.btnOutline} rounded-sm transition-all`}>
                       Disconnect Phantom
                     </button>
                   ) : (
                     <button
                       onClick={connectPhantom}
                       disabled={phantomConnecting}
-                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                      className={`w-full font-body font-bold text-sm py-2.5 border-2 ${dark ? "border-[#FAFAF5]/20 bg-transparent text-[#FAFAF5] hover:bg-[#FAFAF5]/10" : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"} rounded-sm transition-all disabled:opacity-40`}
                     >
                       {phantomConnecting ? "Connecting..." : "Connect Phantom"}
                     </button>
@@ -1093,34 +1231,34 @@ export default function AccessVault() {
               </div>
 
               {/* Key 2 — Solflare */}
-              <div className="border-2 border-[#1a1a1a] rounded-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10 bg-[#FAFAF5]">
+              <div className={`border-2 ${dark ? "border-[#FAFAF5]/15" : "border-[#1a1a1a]"} rounded-sm overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 border-b ${dm.cardBorder} ${dm.sectionHead}`}>
                   <div className="flex items-center gap-2">
                     <img src="/solflare-logo.png" className="w-8 h-8 rounded-xl flex-shrink-0" style={{ opacity: phantom2Pubkey ? 1 : 0.6 }} alt="Solflare" />
-                    <span className="font-body font-bold text-sm text-[#1a1a1a]">Key 2 (Solflare)</span>
+                    <span className={`font-body font-bold text-sm ${dm.text}`}>Key 2 (Solflare)</span>
                   </div>
                   {phantom2Pubkey && (
-                    <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
+                    <span className={`font-mono text-xs ${dm.faint40}`}>{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
                   )}
                 </div>
                 <div className="px-4 py-3">
                   {phantom2Error && <p className="font-handwritten text-xs text-[#F7931A] mb-2">{phantom2Error}</p>}
-                  {!phantomPubkey && <p className="font-handwritten text-xs text-[#1a1a1a]/30 mb-2">Connect Key 1 first.</p>}
+                  {!phantomPubkey && <p className={`font-handwritten text-xs ${dm.faint} mb-2`}>Connect Key 1 first.</p>}
                   {phantom2Pubkey ? (
-                    <button onClick={disconnectPhantom2} className="w-full font-body font-bold text-xs py-2 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#FAFAF5] transition-all">
+                    <button onClick={disconnectPhantom2} className={`w-full font-body font-bold text-xs py-2 border ${dm.btnOutline} rounded-sm transition-all`}>
                       Disconnect Solflare (K2)
                     </button>
                   ) : (
                     <button
                       onClick={connectPhantom2}
                       disabled={phantom2Connecting || !phantomPubkey}
-                      className="w-full font-body font-bold text-sm py-2.5 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40"
+                      className={`w-full font-body font-bold text-sm py-2.5 border-2 ${dark ? "border-[#FAFAF5]/20 bg-transparent text-[#FAFAF5] hover:bg-[#FAFAF5]/10" : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"} rounded-sm transition-all disabled:opacity-40`}
                     >
                       {phantom2Connecting ? "Connecting..." : "Connect Solflare (Key 2)"}
                     </button>
                   )}
                   {!phantom2Pubkey && phantomPubkey && (
-                    <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Open Solflare extension and connect as Key 2.</p>
+                    <p className={`font-handwritten text-xs ${dm.faint} mt-1.5`}>Open Solflare extension and connect as Key 2.</p>
                   )}
                 </div>
               </div>
@@ -1130,7 +1268,7 @@ export default function AccessVault() {
                 const key2Connected = !!phantom2Pubkey;
                 return (
                   <div>
-                    <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">Qoin Address</label>
+                    <label className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-wide mb-1.5 block`}>Qoin Address</label>
                     <div className="flex gap-3">
                       <input
                         type="text"
@@ -1151,7 +1289,7 @@ export default function AccessVault() {
                       </button>
                     </div>
                     {(!phantomPubkey || !key2Connected) && shieldInput && (
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/30 mt-1.5">Connect both wallets first.</p>
+                      <p className={`font-handwritten text-xs ${dm.faint} mt-1.5`}>Connect both wallets first.</p>
                     )}
                   </div>
                 );
@@ -1164,7 +1302,7 @@ export default function AccessVault() {
           )}
           <button
             onClick={() => navigate("/qoin/create")}
-            className="font-handwritten text-base text-[#1a1a1a]/50 hover:text-[#F7931A] transition-colors mt-8"
+            className={`font-handwritten text-base ${dm.muted} hover:text-[#F7931A] transition-colors mt-8`}
           >
             Don't have a Qoin? Create one →
           </button>
@@ -1175,7 +1313,7 @@ export default function AccessVault() {
         const evmSelSymbol = evmSelIsEth ? "ETH" : (evmSelToken?.symbol ?? "");
         const evmSelName   = evmSelIsEth ? "Ether" : (evmSelToken?.name ?? "");
         const evmSelBal    = evmSelIsEth ? evmShield.ethBalance : (evmSelToken?.balance ?? 0);
-        const evmSelLogo   = evmSelIsEth ? "/eth-logo.png" : (evmSelToken?.logo ?? "");
+        const evmSelLogo   = evmSelIsEth ? (evmShield.ethLogo || "/eth-logo.png") : (evmSelToken?.logo ?? "");
         const evmSelDec    = evmSelIsEth ? 18 : (evmSelToken?.decimals ?? 18);
 
         function resetSend() {
@@ -1188,22 +1326,22 @@ export default function AccessVault() {
         <div className="flex flex-1 overflow-hidden">
 
           {/* LEFT SIDEBAR */}
-          <div className="w-14 md:w-60 flex-shrink-0 border-r-2 border-[#1a1a1a]/10 bg-white flex flex-col overflow-hidden">
+          <div className={`w-14 md:w-60 flex-shrink-0 border-r-2 ${dm.divider} ${dm.sidebar} flex flex-col overflow-hidden`}>
             <div className="overflow-y-auto flex-1 py-2">
 
               <div className="hidden md:block px-4 pt-2 pb-1">
-                <span className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-widest">Assets</span>
+                <span className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-widest`}>{t.access.tokens}</span>
               </div>
 
               {/* ETH row */}
               <button
                 onClick={() => { setEvmSidebarSelected("eth"); setEvmActiveTab(null); resetSend(); }}
-                className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2.5 transition-all ${evmSidebarSelected === "eth" ? "bg-[#F7931A]/10 border-l-4 border-l-[#F7931A]" : "border-l-4 border-l-transparent hover:bg-[#FAFAF5]"}`}
+                className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2.5 transition-all ${evmSidebarSelected === "eth" ? dm.sidebarSelected : dm.sidebarHover}`}
               >
-                <img src="/eth-logo.png" alt="ETH" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
-                <div className="hidden md:block min-w-0 flex-1">
-                  <div className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">ETH</div>
-                  <div className="font-mono text-xs text-[#1a1a1a]/50 mt-0.5">{fmtBalance(evmShield.ethBalance)}</div>
+                <img src={evmShield.ethLogo || "/eth-logo.png"} alt="ETH" className="w-9 h-9 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/eth-logo.png"; }} />
+                <div className="hidden md:flex min-w-0 flex-1 items-center justify-between gap-1">
+                  <span className={`font-body font-bold text-sm ${dm.text} truncate leading-none`}>ETH</span>
+                  <span className={`font-mono text-xs ${dm.muted} flex-shrink-0`}>{fmtBalance(evmShield.ethBalance)}</span>
                 </div>
               </button>
 
@@ -1212,33 +1350,33 @@ export default function AccessVault() {
                 <button
                   key={tok.contract}
                   onClick={() => { setEvmSidebarSelected(tok.contract); setEvmActiveTab(null); resetSend(); }}
-                  className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2.5 transition-all ${evmSidebarSelected === tok.contract ? "bg-[#F7931A]/10 border-l-4 border-l-[#F7931A]" : "border-l-4 border-l-transparent hover:bg-[#FAFAF5]"}`}
+                  className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2.5 transition-all ${evmSidebarSelected === tok.contract ? dm.sidebarSelected : dm.sidebarHover}`}
                 >
                   {tok.logo ? (
                     <img src={tok.logo} alt={tok.symbol} className="w-9 h-9 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   ) : (
-                    <div className="w-9 h-9 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center flex-shrink-0">
-                      <span className="font-sketch text-xs text-[#1a1a1a]/40">{tok.symbol.slice(0, 2)}</span>
+                    <div className={`w-9 h-9 rounded-full ${dm.iconCircle} flex items-center justify-center flex-shrink-0`}>
+                      <span className={`font-sketch text-xs ${dm.faint40}`}>{tok.symbol.slice(0, 2)}</span>
                     </div>
                   )}
-                  <div className="hidden md:block min-w-0 flex-1">
-                    <div className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">{tok.symbol}</div>
-                    <div className="font-mono text-xs text-[#1a1a1a]/50 mt-0.5">{fmtBalance(tok.balance)}</div>
+                  <div className="hidden md:flex min-w-0 flex-1 items-center justify-between gap-1">
+                    <span className={`font-body font-bold text-sm ${dm.text} truncate leading-none`}>{tok.symbol}</span>
+                    <span className={`font-mono text-xs ${dm.muted} flex-shrink-0`}>{fmtBalance(tok.balance)}</span>
                   </div>
                 </button>
               ))}
 
               {evmShield.tokens.length === 0 && (
                 <div className="hidden md:block px-4 py-3">
-                  <p className="font-handwritten text-sm text-[#1a1a1a]/40">No ERC-20 tokens.</p>
+                  <p className={`font-handwritten text-sm ${dm.faint40}`}>No ERC-20 tokens.</p>
                 </div>
               )}
             </div>
 
             {/* Sidebar footer */}
-            <div className="hidden md:block border-t-2 border-[#1a1a1a]/10 px-4 py-3 flex-shrink-0">
-              <div className="font-body font-bold text-xs text-[#1a1a1a]/50 mb-0.5">Qoin Address</div>
-              <div className="font-mono text-[10px] text-[#1a1a1a]/40 break-all leading-relaxed">{evmActiveAddress}</div>
+            <div className={`hidden md:block border-t-2 ${dm.divider} px-4 py-3 flex-shrink-0`}>
+              <div className={`font-body font-bold text-xs ${dm.muted} mb-0.5`}>Qoin Address</div>
+              <div className={`font-mono text-[10px] ${dm.faint40} break-all leading-relaxed`}>{evmActiveAddress}</div>
               <div className="flex gap-2 mt-2">
                 <a
                   href={`https://blockchair.com/ethereum/address/${evmActiveAddress}`}
@@ -1247,7 +1385,7 @@ export default function AccessVault() {
                 >Blockchair ↗</a>
                 <button
                   onClick={() => { setEvmShield(null); setEvmActiveAddress(""); setEvmAddressInput(""); setEvmSidebarSelected("eth"); setEvmActiveTab(null); }}
-                  className="font-body font-bold text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors"
+                  className={`font-body font-bold text-xs ${dm.faint} hover:text-red-500 transition-colors`}
                 >Close</button>
               </div>
             </div>
@@ -1262,51 +1400,74 @@ export default function AccessVault() {
                 {evmSelLogo ? (
                   <img src={evmSelLogo} className="w-14 h-14 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="font-sketch text-base text-[#1a1a1a]/30">{evmSelSymbol.slice(0, 3)}</span>
+                  <div className={`w-14 h-14 rounded-full ${dm.iconCircle} flex items-center justify-center flex-shrink-0`}>
+                    <span className={`font-sketch text-base ${dm.faint}`}>{evmSelSymbol.slice(0, 3)}</span>
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="font-sketch text-3xl text-[#1a1a1a] leading-none">{evmSelSymbol}</div>
-                  <div className="font-sketch text-xl mt-0.5 leading-none" style={{ color: evmSelBal > 0 ? "#F7931A" : "#1a1a1a", opacity: evmSelBal > 0 ? 1 : 0.3 }}>
+                  <div className={`font-sketch text-3xl ${dm.text} leading-none`}>{evmSelSymbol}</div>
+                  <div className="font-sketch text-xl mt-0.5 leading-none" style={{ color: evmSelBal > 0 ? "#F7931A" : (dark ? "#FAFAF5" : "#1a1a1a"), opacity: evmSelBal > 0 ? 1 : 0.3 }}>
                     {fmtBalance(evmSelBal)} {evmSelSymbol}
                   </div>
-                  <div className="font-handwritten text-sm text-[#1a1a1a]/40 mt-0.5">{evmSelName}</div>
+                  {(() => {
+                    const ep = evmPrices[evmSelIsEth ? "eth" : evmSidebarSelected.toLowerCase()];
+                    if (!ep?.price) return null;
+                    return (
+                      <>
+                        <div className={`font-mono text-sm ${dm.muted} mt-1`}>{fmtPrice(ep.price)} per token</div>
+                        {evmSelBal > 0 && <div className={`font-mono text-sm ${dm.faint40} mt-0.5`}>{fmtPrice(evmSelBal * ep.price)} total</div>}
+                      </>
+                    );
+                  })()}
                 </div>
+                {(() => {
+                  const ep = evmPrices[evmSelIsEth ? "eth" : evmSidebarSelected.toLowerCase()];
+                  if (ep?.change24h == null) return null;
+                  return (
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-sketch text-xl" style={{ color: ep.change24h >= 0 ? "#F7931A" : (dark ? "#FAFAF5" : "#1a1a1a"), opacity: ep.change24h >= 0 ? 1 : 0.7 }}>
+                        {ep.change24h >= 0 ? "+" : ""}{ep.change24h.toFixed(2)}%
+                      </div>
+                      <div className={`font-handwritten text-sm ${dm.muted}`}>24h change</div>
+                    </div>
+                  );
+                })()}
                 {/* Mobile close */}
                 <button
                   onClick={() => { setEvmShield(null); setEvmActiveAddress(""); setEvmAddressInput(""); setEvmSidebarSelected("eth"); setEvmActiveTab(null); }}
-                  className="md:hidden font-body font-bold text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors flex-shrink-0"
+                  className={`md:hidden font-body font-bold text-xs ${dm.faint} hover:text-red-500 transition-colors flex-shrink-0`}
                 >✕ Close</button>
               </div>
 
               {/* Co-signers strip */}
               {(evmAddress1 || evmAddress2) && (
-                <div className="flex items-center gap-4 px-4 py-3 border border-[#1a1a1a]/10 rounded-sm bg-white">
+                <div className={`flex items-center gap-4 px-4 py-3 border ${dm.cardBorder} rounded-sm ${dm.sectionHead}`}>
                   {evmAddress1 && (
                     <div className="flex items-center gap-1.5">
                       <img src="/metamask-logo.png" className="w-4 h-4 rounded flex-shrink-0" alt="MetaMask" />
-                      <span className="font-mono text-xs text-[#1a1a1a]/50">K1 {evmAddress1.slice(0, 6)}…{evmAddress1.slice(-4)}</span>
+                      <span className={`font-mono text-xs ${dm.muted}`}>K1 {evmAddress1.slice(0, 6)}…{evmAddress1.slice(-4)}</span>
                     </div>
                   )}
                   {evmAddress2 && (
                     <div className="flex items-center gap-1.5">
                       <img src="/metamask-logo.png" className="w-4 h-4 rounded flex-shrink-0" alt="MetaMask" />
-                      <span className="font-mono text-xs text-[#1a1a1a]/50">K2 {evmAddress2.slice(0, 6)}…{evmAddress2.slice(-4)}</span>
+                      <span className={`font-mono text-xs ${dm.muted}`}>K2 {evmAddress2.slice(0, 6)}…{evmAddress2.slice(-4)}</span>
                     </div>
                   )}
                   <a href={`https://blockchair.com/ethereum/address/${evmActiveAddress}`} target="_blank" rel="noopener noreferrer" className="ml-auto font-body font-bold text-xs text-[#F7931A] hover:underline md:hidden">Blockchair ↗</a>
                 </div>
               )}
 
-              {/* Receive / Send action buttons */}
+              {/* Receive / Send / Swap action buttons */}
               <div className="flex gap-3">
                 <button
                   onClick={() => setEvmActiveTab(evmActiveTab === "receive" ? null : "receive")}
                   className={`flex-1 py-4 font-body font-bold text-base rounded-sm border-2 transition-all flex items-center justify-center gap-2 ${
                     evmActiveTab === "receive"
                       ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
-                      : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"
+                      : dark
+                        ? "border-[#FAFAF5]/20 text-[#FAFAF5]/80 hover:bg-[#FAFAF5]/10"
+                        : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"
                   }`}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1323,27 +1484,52 @@ export default function AccessVault() {
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 14V5M4 9l4-4 4 4M2 3h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   Send
                 </button>
+                <button
+                  onClick={() => setEvmActiveTab(evmActiveTab === "swap" ? null : "swap")}
+                  className={`flex-1 py-4 font-body font-bold text-base rounded-sm border-2 transition-all flex items-center justify-center gap-2 ${
+                    evmActiveTab === "swap"
+                      ? dark ? "border-[#FAFAF5]/20 bg-[#FAFAF5]/10 text-[#FAFAF5]/60" : "border-[#1a1a1a]/40 bg-[#1a1a1a]/10 text-[#1a1a1a]/60"
+                      : dark ? "border-[#FAFAF5]/10 text-[#FAFAF5]/30 hover:border-[#FAFAF5]/20 hover:text-[#FAFAF5]/50" : "border-[#1a1a1a]/20 text-[#1a1a1a]/30 hover:border-[#1a1a1a]/40 hover:text-[#1a1a1a]/50"
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Swap
+                </button>
               </div>
+              {/* SWAP COMING SOON PANEL */}
+              {evmActiveTab === "swap" && (
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.sectionHead} px-6 py-8 text-center space-y-3`}>
+                  <div className={`font-sketch text-2xl ${dm.faint40}`}>Swap</div>
+                  <div className={`font-handwritten text-base ${dm.muted} leading-relaxed`}>
+                    Swap with 2-key signing protection is in development.<br />Coming soon.
+                  </div>
+                  <button onClick={() => setEvmActiveTab(null)} className={`font-handwritten text-xs ${dm.faint} hover:text-red-500 transition-colors`}>close</button>
+                </div>
+              )}
 
               {/* RECEIVE PANEL */}
               {evmActiveTab === "receive" && (
-                <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} shadow-[3px_3px_0_#1a1a1a] overflow-hidden`}>
                   <div className="flex flex-col items-center px-6 py-8 space-y-5">
-                    <div className="font-sketch text-2xl text-[#1a1a1a]">Receive {evmSelSymbol}</div>
-                    <div className="w-full border-2 border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm px-4 py-3 space-y-1">
-                      <div className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest mb-1">Qoin Address</div>
-                      <div className="font-mono text-sm text-[#1a1a1a] break-all">{evmActiveAddress}</div>
+                    <div className={`font-sketch text-2xl ${dm.text}`}>Receive {evmSelSymbol}</div>
+                    <div className={`w-full border-2 ${dm.cardBorder} ${dm.sectionHead} rounded-sm px-4 py-3 space-y-1`}>
+                      <div className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-widest mb-1`}>Qoin Address</div>
+                      <div className={`font-mono text-sm ${dm.text} break-all`}>{evmActiveAddress}</div>
                     </div>
-                    <div className="border-4 border-[#1a1a1a] p-4 rounded-sm bg-white shadow-[4px_4px_0_#1a1a1a]">
+                    <div className={`border-4 ${dm.cardBorder} p-4 rounded-sm bg-white shadow-[4px_4px_0_#1a1a1a]`}>
                       <QRCodeSVG value={evmActiveAddress} size={200} bgColor="#ffffff" fgColor="#1a1a1a" level="M" />
                     </div>
                     <button
-                      onClick={async () => { await navigator.clipboard.writeText(evmActiveAddress); }}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(evmActiveAddress);
+                        setEvmAddrCopied(true);
+                        setTimeout(() => setEvmAddrCopied(false), 2000);
+                      }}
                       className="btn-sketch px-8 py-3 text-sm"
                     >
-                      Copy Address
+                      {evmAddrCopied ? "Copied!" : "Copy Address"}
                     </button>
-                    <p className="font-handwritten text-xs text-[#1a1a1a]/40 text-center max-w-xs">
+                    <p className={`font-handwritten text-xs ${dm.faint40} text-center max-w-xs`}>
                       Send {evmSelSymbol} directly to this Ethereum address. ETH and all ERC-20 tokens share the same Qoin address.
                     </p>
                   </div>
@@ -1352,39 +1538,69 @@ export default function AccessVault() {
 
               {/* SEND PANEL */}
               {evmActiveTab === "send" && (
-                <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#1a1a1a]/10 bg-[#FAFAF5]">
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} shadow-[3px_3px_0_#1a1a1a] overflow-hidden`}>
+                  <div className={`flex items-center justify-between px-4 py-3 border-b-2 ${dm.divider} ${dm.sectionHead}`}>
                     <div className="flex items-center gap-2">
                       {evmSelLogo && <img src={evmSelLogo} className="w-5 h-5 rounded-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />}
-                      <span className="font-sketch text-base text-[#1a1a1a]">Send {evmSelSymbol}</span>
+                      <span className={`font-sketch text-base ${dm.text}`}>Send {evmSelSymbol}</span>
                     </div>
-                    <button onClick={() => setEvmActiveTab(null)} className="font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500 transition-colors">cancel</button>
+                    <button onClick={() => setEvmActiveTab(null)} className={`font-handwritten text-xs ${dm.faint} hover:text-red-500 transition-colors`}>cancel</button>
                   </div>
 
                   {evmSendStatus === "done" ? (
                     <div className="px-4 py-6 text-center space-y-3">
-                      <div className="font-sketch text-2xl text-[#1a1a1a]">Sent!</div>
-                      <p className="font-handwritten text-sm text-[#1a1a1a]/50">Transaction submitted on-chain.</p>
+                      <div className={`font-sketch text-2xl ${dm.text}`}>Sent!</div>
+                      <p className={`font-handwritten text-sm ${dm.muted}`}>Transaction submitted on-chain.</p>
                       <a href={`https://blockchair.com/ethereum/transaction/${evmSendTxHash}`} target="_blank" rel="noopener noreferrer" className="inline-block font-body font-bold text-sm text-[#F7931A] hover:underline">
                         View on Blockchair ↗
                       </a>
                       <div>
-                        <button onClick={resetSend} className="btn-sketch-outline text-sm py-2 px-5 bg-white mt-2">Send another</button>
+                        <button onClick={resetSend} className={`btn-sketch-outline text-sm py-2 px-5 ${dm.card} mt-2`}>Send another</button>
                       </div>
                     </div>
                   ) : (
                     <div className="px-4 py-4 space-y-4">
-                      {/* K1/K2 connect check */}
-                      {(!evmAddress1 || !evmAddress2) && (
+                      {/* Cold Keys mode: show private key inputs */}
+                      {accessMode === "cold-keys" && (
+                        <div className={`border-2 ${dm.cardBorder} rounded-sm overflow-hidden`}>
+                          <div className={`flex items-center gap-2 px-4 py-2.5 ${dm.sectionHead} border-b ${dm.divider}`}>
+                            <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
+                            <span className={`font-sketch text-sm ${dm.text}`}>Paste your two cold keys</span>
+                            {hasBothEvmColdKeys && <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both keys loaded</span>}
+                          </div>
+                          <p className={`font-handwritten text-xs ${dm.faint} px-4 pt-2.5`}>Keys are used to sign locally. They are never sent to any server.</p>
+                          <div className="p-4 space-y-3">
+                            <div>
+                              <label className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-wide mb-1 block`}>Private Key 1</label>
+                              <div className="relative">
+                                <input type={showEvmPk1 ? "text" : "password"} placeholder="0x hex private key..." value={evmPk1} onChange={(e) => { setEvmPk1(e.target.value); setEvmSig1(null); setEvmSig2(null); }} autoComplete="off" autoCorrect="off" spellCheck={false} className="input-sketch text-sm font-mono py-2 pr-16 w-full" />
+                                <button onClick={() => setShowEvmPk1(!showEvmPk1)} className={`absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm ${dm.muted}`}>{showEvmPk1 ? "Hide" : "Show"}</button>
+                              </div>
+                              {evmPk1 && !evmPk1Valid && <p className="font-handwritten text-xs text-[#F7931A] mt-1">Invalid key format.</p>}
+                            </div>
+                            <div>
+                              <label className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-wide mb-1 block`}>Private Key 2</label>
+                              <div className="relative">
+                                <input type={showEvmPk2 ? "text" : "password"} placeholder="0x hex private key..." value={evmPk2} onChange={(e) => { setEvmPk2(e.target.value); setEvmSig2(null); }} autoComplete="off" autoCorrect="off" spellCheck={false} className="input-sketch text-sm font-mono py-2 pr-16 w-full" />
+                                <button onClick={() => setShowEvmPk2(!showEvmPk2)} className={`absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm ${dm.muted}`}>{showEvmPk2 ? "Hide" : "Show"}</button>
+                              </div>
+                              {evmPk2 && !evmPk2Valid && <p className="font-handwritten text-xs text-[#F7931A] mt-1">Invalid key format.</p>}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Connect Wallets mode: show MetaMask connect prompts */}
+                      {accessMode === "connect-wallets" && (!evmAddress1 || !evmAddress2) && (
                         <div className="space-y-2">
-                          <p className="font-handwritten text-sm text-[#1a1a1a]/50">Both K1 and K2 must be connected to sign a send transaction.</p>
+                          <p className={`font-handwritten text-sm ${dm.muted}`}>Both K1 and K2 must be connected to sign a send transaction.</p>
                           {!evmAddress1 && (
-                            <button onClick={connectK1} disabled={evmConnecting1} className="btn-sketch-outline w-full text-sm py-2 bg-white">
+                            <button onClick={connectK1} disabled={evmConnecting1} className={`btn-sketch-outline w-full text-sm py-2 ${dm.card}`}>
                               {evmConnecting1 ? "Connecting..." : "Connect K1 (MetaMask)"}
                             </button>
                           )}
                           {evmAddress1 && !evmAddress2 && (
-                            <button onClick={connectK2} disabled={evmConnecting2} className="btn-sketch-outline w-full text-sm py-2 bg-white">
+                            <button onClick={connectK2} disabled={evmConnecting2} className={`btn-sketch-outline w-full text-sm py-2 ${dm.card}`}>
                               {evmConnecting2 ? "Connecting..." : "Connect K2 (MetaMask)"}
                             </button>
                           )}
@@ -1393,29 +1609,30 @@ export default function AccessVault() {
                         </div>
                       )}
 
-                      {evmAddress1 && evmAddress2 && (
+                      {/* Send form: shown when cold keys loaded OR MetaMask connected */}
+                      {((accessMode === "cold-keys" && hasBothEvmColdKeys) || (accessMode === "connect-wallets" && evmAddress1 && evmAddress2)) && (
                         <>
                           {/* Recipient */}
                           <div>
-                            <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">Recipient Address</label>
+                            <label className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-widest block mb-1.5`}>Recipient Address</label>
                             <input
                               type="text" placeholder="0x..."
                               value={evmSendRecipient}
                               onChange={(e) => { setEvmSendRecipient(e.target.value); setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); }}
                               disabled={evmSendStatus !== "idle"}
-                              className="w-full border-2 border-[#1a1a1a] rounded-sm px-3 py-2 font-mono text-sm bg-white placeholder:text-[#1a1a1a]/20 disabled:opacity-40"
+                              className={`w-full border-2 ${dm.cardBorder} rounded-sm px-3 py-2 font-mono text-sm ${dm.inputBg} ${dm.text} placeholder:opacity-20 disabled:opacity-40`}
                             />
                           </div>
 
                           {/* Amount */}
                           <div>
-                            <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-widest block mb-1.5">Amount ({evmSelSymbol})</label>
+                            <label className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-widest block mb-1.5`}>Amount ({evmSelSymbol})</label>
                             <input
                               type="number" placeholder="0.0" min="0" step="any"
                               value={evmSendAmount}
                               onChange={(e) => { setEvmSendAmount(e.target.value); setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); }}
                               disabled={evmSendStatus !== "idle"}
-                              className="w-full border-2 border-[#1a1a1a] rounded-sm px-3 py-2 font-body text-sm bg-white disabled:opacity-40"
+                              className={`w-full border-2 ${dm.cardBorder} rounded-sm px-3 py-2 font-body text-sm ${dm.inputBg} ${dm.text} disabled:opacity-40`}
                             />
                           </div>
 
@@ -1444,7 +1661,13 @@ export default function AccessVault() {
                                   const safeTx = buildSafeTx({ to: txTo, value: txValue, data: txData, nonce });
                                   const typedData = buildTypedData(evmActiveAddress, 1, safeTx);
                                   setEvmSendStatus("signing1");
-                                  const sig1 = await signTypedDataK1(typedData);
+                                  let sig1: string;
+                                  if (accessMode === "cold-keys") {
+                                    sig1 = await evmSignTypedData(evmPk1, typedData);
+                                    setEvmColdSig1Addr(evmAddressFromPrivateKey(evmPk1));
+                                  } else {
+                                    sig1 = await signTypedDataK1(typedData);
+                                  }
                                   setEvmSig1(sig1);
                                   setEvmSendStatus("idle");
                                 } catch (e: unknown) {
@@ -1452,17 +1675,17 @@ export default function AccessVault() {
                                   setEvmSendStatus("idle");
                                 }
                               }}
-                              className="w-full py-3 border-2 border-[#1a1a1a] rounded-sm font-sketch text-base bg-white hover:bg-[#FAFAF5] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              className={`w-full py-3 border-2 border-[#1a1a1a] rounded-sm font-sketch text-base ${dm.card} ${dm.sidebarHover} transition-all disabled:opacity-30 disabled:cursor-not-allowed`}
                             >
-                              {evmSendStatus === "fetchNonce" ? "Fetching nonce..." : evmSendStatus === "signing1" ? "Waiting for K1 signature..." : "Step 1: Sign with K1"}
+                              {evmSendStatus === "fetchNonce" ? "Fetching nonce..." : evmSendStatus === "signing1" ? "Signing with Key 1..." : "Step 1: Sign with Key 1"}
                             </button>
                           )}
 
                           {evmSig1 && (
                             <div className="flex items-center gap-2 px-3 py-2 border border-green-300 bg-green-50 rounded-sm">
                               <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-green-600 flex-shrink-0"><path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                              <span className="font-handwritten text-sm text-green-700">K1 signed</span>
-                              <button onClick={() => { setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); setEvmSendStatus("idle"); }} className="ml-auto font-handwritten text-xs text-[#1a1a1a]/30 hover:text-red-500">redo</button>
+                              <span className="font-handwritten text-sm text-green-700">Key 1 signed</span>
+                              <button onClick={() => { setEvmSig1(null); setEvmSig2(null); setEvmSendNonce(null); setEvmSendStatus("idle"); setEvmColdSig1Addr(null); setEvmColdSig2Addr(null); }} className={`ml-auto font-handwritten text-xs ${dm.faint} hover:text-red-500`}>redo</button>
                             </div>
                           )}
 
@@ -1479,33 +1702,46 @@ export default function AccessVault() {
                                   const safeTx = buildSafeTx({ to: txTo, value: txValue, data: txData, nonce: evmSendNonce! });
                                   const typedData = buildTypedData(evmActiveAddress, 1, safeTx);
                                   setEvmSendStatus("signing2");
-                                  const sig2 = await signTypedDataK2(typedData);
+                                  let sig2: string;
+                                  if (accessMode === "cold-keys") {
+                                    sig2 = await evmSignTypedData(evmPk2, typedData);
+                                    setEvmColdSig2Addr(evmAddressFromPrivateKey(evmPk2));
+                                  } else {
+                                    sig2 = await signTypedDataK2(typedData);
+                                  }
                                   setEvmSig2(sig2);
                                   setEvmSendStatus("idle");
                                 } catch (e: unknown) {
-                                  setEvmSendError((e as Error).message || "K2 signing failed.");
+                                  setEvmSendError((e as Error).message || "Key 2 signing failed.");
                                   setEvmSendStatus("idle");
                                 }
                               }}
-                              className="w-full py-3 border-2 border-[#F7931A] rounded-sm font-sketch text-base bg-white hover:bg-[#F7931A]/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                              className={`w-full py-3 border-2 border-[#F7931A] rounded-sm font-sketch text-base ${dm.card} hover:bg-[#F7931A]/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed`}
                             >
-                              {evmSendStatus === "signing2" ? "Waiting for K2 signature..." : "Step 2: Sign with K2"}
+                              {evmSendStatus === "signing2" ? "Signing with Key 2..." : "Step 2: Sign with Key 2"}
                             </button>
                           )}
 
                           {evmSig2 && (
                             <div className="flex items-center gap-2 px-3 py-2 border border-green-300 bg-green-50 rounded-sm">
                               <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-green-600 flex-shrink-0"><path d="M3 8.5L6.5 12L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                              <span className="font-handwritten text-sm text-green-700">K2 signed</span>
+                              <span className="font-handwritten text-sm text-green-700">Key 2 signed</span>
                             </div>
                           )}
 
                           {evmSig1 && evmSig2 && (
                             <>
-                              <div className="flex items-center gap-2 px-3 py-2 border border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm">
-                                <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4 text-[#1a1a1a]/40 flex-shrink-0"><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                                <span className="font-handwritten text-xs text-[#1a1a1a]/40">K1 pays execution gas from MetaMask (not the Qoin).</span>
-                              </div>
+                              {accessMode === "cold-keys" ? (
+                                <div className={`flex items-center gap-2 px-3 py-2 border ${dm.divider} ${dm.sectionHead} rounded-sm`}>
+                                  <svg viewBox="0 0 16 16" fill="none" className={`w-4 h-4 ${dm.faint40} flex-shrink-0`}><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                                  <span className={`font-handwritten text-xs ${dm.faint40}`}>Gas is covered by bitQoin. No MetaMask needed.</span>
+                                </div>
+                              ) : (
+                                <div className={`flex items-center gap-2 px-3 py-2 border ${dm.divider} ${dm.sectionHead} rounded-sm`}>
+                                  <svg viewBox="0 0 16 16" fill="none" className={`w-4 h-4 ${dm.faint40} flex-shrink-0`}><path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                                  <span className={`font-handwritten text-xs ${dm.faint40}`}>K1 pays execution gas from MetaMask (not the Qoin).</span>
+                                </div>
+                              )}
                               <button
                                 disabled={evmSendStatus === "executing"}
                                 onClick={async () => {
@@ -1516,11 +1752,29 @@ export default function AccessVault() {
                                     const txValue = evmSelIsEth ? amountBig : 0n;
                                     const txData = evmSelIsEth ? "0x" : encodeERC20Transfer(evmSendRecipient, amountBig);
                                     const safeTx = buildSafeTx({ to: txTo, value: txValue, data: txData, nonce: evmSendNonce! });
-                                    const packed = packSignatures(evmSig1!, evmAddress1!, evmSig2!, evmAddress2!);
-                                    const calldata = encodeExecTransaction(safeTx, packed);
                                     setEvmSendStatus("executing");
-                                    const txHash = await sendTransaction({ from: evmAddress1!, to: evmActiveAddress, data: calldata, gas: "0x7A120" });
-                                    setEvmSendTxHash(txHash);
+                                    if (accessMode === "cold-keys") {
+                                      const res = await fetch("/api/evm/relay-tx", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          vaultAddress: evmActiveAddress,
+                                          safeTx,
+                                          sig1: evmSig1,
+                                          k1Address: evmColdSig1Addr,
+                                          sig2: evmSig2,
+                                          k2Address: evmColdSig2Addr,
+                                        }),
+                                      });
+                                      const d = await res.json() as { txHash?: string; error?: string };
+                                      if (!res.ok || d.error) throw new Error(d.error || "Relay failed.");
+                                      setEvmSendTxHash(d.txHash!);
+                                    } else {
+                                      const packed = packSignatures(evmSig1!, evmAddress1!, evmSig2!, evmAddress2!);
+                                      const calldata = encodeExecTransaction(safeTx, packed);
+                                      const txHash = await sendTransaction({ from: evmAddress1!, to: evmActiveAddress, data: calldata, gas: "0x7A120" });
+                                      setEvmSendTxHash(txHash);
+                                    }
                                     setEvmSendStatus("done");
                                   } catch (e: unknown) {
                                     setEvmSendError((e as Error).message || "Execution failed.");
@@ -1539,6 +1793,75 @@ export default function AccessVault() {
                   )}
                 </div>
               )}
+
+              {/* EVM PRICE CHART */}
+              {evmActiveTab === null && (
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} overflow-hidden shadow-[3px_3px_0_#1a1a1a]`}>
+                  <div className={`flex items-center justify-between px-4 py-3 border-b ${dm.divider}`}>
+                    <span className={`font-sketch text-base ${dm.text}`}>7-Day Price</span>
+                    <div className="flex items-center gap-3">
+                      {evmChartChange != null && (
+                        <span className={`font-mono text-xs font-bold ${evmChartChange >= 0 ? "text-green-600" : "text-red-500"}`}>
+                          {evmChartChange >= 0 ? "+" : ""}{evmChartChange.toFixed(2)}%
+                        </span>
+                      )}
+                      {evmChartLoading && <span className={`font-handwritten text-sm ${dm.faint}`}>Loading...</span>}
+                      {!evmChartLoading && evmChartData.length === 0 && (
+                        <span className={`font-handwritten text-sm ${dm.muted}`}>No price data</span>
+                      )}
+                    </div>
+                  </div>
+                  {evmChartData.length > 0 ? (
+                    <div className="h-56 px-2 py-3">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={evmChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="evmChartFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={evmChartChange != null && evmChartChange < 0 ? "#1a1a1a" : "#F7931A"} stopOpacity={0.15} />
+                              <stop offset="95%" stopColor={evmChartChange != null && evmChartChange < 0 ? "#1a1a1a" : "#F7931A"} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis
+                            dataKey="time"
+                            tickFormatter={(v) => new Date(v).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                            tick={{ fontFamily: "monospace", fontSize: 10, fill: dark ? "#FAFAF5" : "#1a1a1a", opacity: 0.3 }}
+                            axisLine={false} tickLine={false} interval="preserveStartEnd"
+                          />
+                          <YAxis
+                            domain={["auto", "auto"]}
+                            tickFormatter={(v) => v >= 1 ? `$${v.toFixed(0)}` : `$${v.toFixed(4)}`}
+                            tick={{ fontFamily: "monospace", fontSize: 10, fill: dark ? "#FAFAF5" : "#1a1a1a", opacity: 0.3 }}
+                            axisLine={false} tickLine={false} width={60}
+                          />
+                          <Tooltip
+                            formatter={(v: number) => [`$${v >= 1 ? v.toFixed(2) : v.toFixed(6)}`, evmSelSymbol]}
+                            labelFormatter={(t) => new Date(t).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                            contentStyle={{ fontFamily: "monospace", fontSize: 12, border: `2px solid ${dark ? "#FAFAF5" : "#1a1a1a"}`, borderRadius: 0, background: dark ? "#0f0f0f" : "#fff" }}
+                            itemStyle={{ color: dark ? "#FAFAF5" : "#1a1a1a" }}
+                            labelStyle={{ color: dark ? "#FAFAF5" : "#1a1a1a", opacity: 0.4 }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="price"
+                            stroke={evmChartChange != null && evmChartChange < 0 ? "#1a1a1a" : "#F7931A"}
+                            strokeWidth={2}
+                            fill="url(#evmChartFill)"
+                            dot={false}
+                            activeDot={{ r: 4, fill: evmChartChange != null && evmChartChange < 0 ? "#1a1a1a" : "#F7931A", strokeWidth: 0 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-56 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className={`font-sketch text-2xl ${dm.faint} mb-1`} style={{ opacity: 0.1 }}>--</div>
+                        <div className={`font-handwritten text-sm ${dm.faint40}`}>Price chart not available</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1547,61 +1870,49 @@ export default function AccessVault() {
         <div className="flex flex-1 overflow-hidden">
 
           {/* LEFT SIDEBAR icon-only on mobile, full on md+ */}
-          <div className="w-14 md:w-60 flex-shrink-0 border-r-2 border-[#1a1a1a]/10 bg-white flex flex-col overflow-hidden">
+          <div className={`w-14 md:w-60 flex-shrink-0 border-r-2 ${dm.divider} ${dm.sidebar} flex flex-col overflow-hidden`}>
             <div className="overflow-y-auto flex-1 py-2">
 
               {/* Holdings label desktop only */}
               <div className="hidden md:block px-4 pt-2 pb-1">
-                <span className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-widest">{t.access.tokens}</span>
+                <span className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-widest`}>{t.access.tokens}</span>
               </div>
 
               {/* SPL tokens */}
-              {shield.tokens.map((t) => {
-                const tdex = dexPrices[t.mint];
-                const price = t.pricePerToken ?? tdex?.price ?? null;
-                return (
-                  <button
-                    key={t.mint}
-                    onClick={() => selectToken(t.mint, t)}
-                    className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2.5 transition-all ${sidebarSelected === t.mint ? "bg-[#F7931A]/10 border-l-4 border-l-[#F7931A]" : "border-l-4 border-l-transparent hover:bg-[#FAFAF5]"}`}
-                  >
-                    {t.logo ? (
-                      <img src={t.logo} alt={t.symbol ?? t.mint} className="w-9 h-9 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center flex-shrink-0">
-                        <span className="font-sketch text-xs text-[#1a1a1a]/40">{t.symbol?.slice(0, 2) ?? "?"}</span>
-                      </div>
-                    )}
-                    <div className="hidden md:block min-w-0 flex-1">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">{DISPLAY_SYMBOL[t.mint] ?? t.symbol ?? t.name?.slice(0, 8) ?? "Token"}</span>
-                        {price && !t.isNft && <span className="font-mono text-xs text-[#F7931A] flex-shrink-0">{fmtPrice(price)}</span>}
-                      </div>
-                      <div className="font-mono text-xs text-[#1a1a1a]/50 mt-0.5 flex items-center gap-1.5">
-                        {t.isNft ? "NFT" : fmtBalance(t.balance)}
-                        {t.isLocked && <span className="font-body text-[10px] font-bold px-1 py-0 border border-[#F7931A] text-[#F7931A] rounded leading-4">Locked</span>}
-                      </div>
+              {shield.tokens.map((t) => (
+                <button
+                  key={t.mint}
+                  onClick={() => selectToken(t.mint, t)}
+                  className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2.5 transition-all ${sidebarSelected === t.mint ? dm.sidebarSelected : dm.sidebarHover}`}
+                >
+                  {t.logo ? (
+                    <img src={t.logo} alt={t.symbol ?? t.mint} className="w-9 h-9 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div className={`w-9 h-9 rounded-full ${dm.iconCircle} flex items-center justify-center flex-shrink-0`}>
+                      <span className={`font-sketch text-xs ${dm.faint40}`}>{t.symbol?.slice(0, 2) ?? "?"}</span>
                     </div>
-                    {tdex?.change24h != null && !t.isNft && !t.isLocked && (
-                      <span className="hidden md:inline font-mono text-xs flex-shrink-0" style={{ color: tdex.change24h >= 0 ? "#F7931A" : "#1a1a1a", opacity: tdex.change24h >= 0 ? 1 : 0.5 }}>
-                        {tdex.change24h >= 0 ? "+" : ""}{tdex.change24h.toFixed(1)}%
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                  )}
+                  <div className="hidden md:flex min-w-0 flex-1 items-center justify-between gap-1">
+                    <span className={`font-body font-bold text-sm ${dm.text} truncate leading-none`}>{DISPLAY_SYMBOL[t.mint] ?? t.symbol ?? t.name?.slice(0, 8) ?? "Token"}</span>
+                    <span className={`font-mono text-xs ${dm.muted} flex-shrink-0 flex items-center gap-1.5`}>
+                      {t.isNft ? "NFT" : fmtBalance(t.balance)}
+                      {t.isLocked && <span className="font-body text-[10px] font-bold px-1 py-0 border border-[#F7931A] text-[#F7931A] rounded leading-4">Locked</span>}
+                    </span>
+                  </div>
+                </button>
+              ))}
 
               {shield.tokens.length === 0 && (
                 <div className="hidden md:block px-4 py-3">
-                  <p className="font-handwritten text-sm text-[#1a1a1a]/40">{t.access.noBalance}</p>
+                  <p className={`font-handwritten text-sm ${dm.faint40}`}>{t.access.noBalance}</p>
                 </div>
               )}
 
               {/* Setup Slots banner sidebar — desktop only supplemental */}
               {activeShieldAddress && (shield.tokens.some(tk => tk.isLocked) || shield.tokens.length === 0) && !slotsDone && (
-                <div className="mx-3 mb-2 mt-1 border-2 border-[#F7931A]/50 bg-[#FFF8F0] rounded-sm p-3 space-y-2">
-                  <p className="font-body font-bold text-xs text-[#1a1a1a]">Setup Required</p>
-                  <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
+                <div className={`mx-3 mb-2 mt-1 border-2 border-[#F7931A]/50 ${dark ? "bg-[#F7931A]/5" : "bg-[#FFF8F0]"} rounded-sm p-3 space-y-2`}>
+                  <p className={`font-body font-bold text-xs ${dm.text}`}>Setup Required</p>
+                  <p className={`font-handwritten text-xs ${dm.faint40} leading-relaxed`}>
                     One-time setup needed before you can receive or send tokens.
                   </p>
                   {slotsError && <p className="font-handwritten text-xs text-[#F7931A]">{slotsError}</p>}
@@ -1615,16 +1926,16 @@ export default function AccessVault() {
                 </div>
               )}
               {slotsDone && (
-                <div className="mx-3 mb-2 mt-1 border border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm px-3 py-2">
-                  <p className="font-handwritten text-xs text-[#1a1a1a]/60">Slots ready. Deposits to this Qoin are now sendable.</p>
+                <div className={`mx-3 mb-2 mt-1 border ${dm.cardBorder} ${dm.sectionHead} rounded-sm px-3 py-2`}>
+                  <p className={`font-handwritten text-xs ${dm.faint40}`}>Slots ready. Deposits to this Qoin are now sendable.</p>
                 </div>
               )}
 
               {/* Quick Deposit divider desktop only label */}
               {visiblePopular.length > 0 && (
                 <>
-                  <div className="border-t border-[#1a1a1a]/5 mt-2 mb-1">
-                    <span className="hidden md:block px-4 pt-3 pb-1 font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-widest">Available</span>
+                  <div className={`border-t ${dm.divider} mt-2 mb-1`}>
+                    <span className={`hidden md:block px-4 pt-3 pb-1 font-body font-bold text-xs ${dm.muted} uppercase tracking-widest`}>Available</span>
                   </div>
                   {visiblePopular.map((t) => {
                     const meta = tokenMeta[t.mint];
@@ -1632,21 +1943,18 @@ export default function AccessVault() {
                       <button
                         key={t.mint}
                         onClick={() => selectToken(t.mint)}
-                        className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2 transition-all ${sidebarSelected === t.mint ? "bg-[#F7931A]/10 border-l-4 border-l-[#F7931A]" : "border-l-4 border-l-transparent hover:bg-[#FAFAF5]"}`}
+                        className={`w-full flex items-center justify-center md:justify-start gap-2.5 px-2 md:px-4 py-2 transition-all ${sidebarSelected === t.mint ? dm.sidebarSelected : dm.sidebarHover}`}
                       >
                         {meta?.image ? (
                           <img src={meta.image} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center flex-shrink-0">
-                            <span className="font-sketch text-xs text-[#1a1a1a]/30">{t.symbol.slice(0, 2)}</span>
+                          <div className={`w-8 h-8 rounded-full ${dm.iconCircle} flex items-center justify-center flex-shrink-0`}>
+                            <span className={`font-sketch text-xs ${dm.faint}`}>{t.symbol.slice(0, 2)}</span>
                           </div>
                         )}
-                        <div className="hidden md:block min-w-0 flex-1">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="font-body font-bold text-sm text-[#1a1a1a] truncate leading-none">{DISPLAY_SYMBOL[t.mint] ?? meta?.symbol ?? t.symbol}</span>
-                            {dexPrices[t.mint]?.price != null && <span className="font-mono text-xs text-[#F7931A] flex-shrink-0">{fmtPrice(dexPrices[t.mint].price)}</span>}
-                          </div>
-                          <div className="font-mono text-xs text-[#1a1a1a]/35 mt-0.5">0.00</div>
+                        <div className="hidden md:flex min-w-0 flex-1 items-center justify-between gap-1">
+                          <span className={`font-body font-bold text-sm ${dm.text} truncate leading-none`}>{DISPLAY_SYMBOL[t.mint] ?? meta?.symbol ?? t.symbol}</span>
+                          <span className={`font-mono text-xs ${dm.faint} flex-shrink-0`}>0.00</span>
                         </div>
                         {sidebarSelected === t.mint && <span className="hidden md:inline w-1.5 h-1.5 rounded-full bg-[#F7931A] flex-shrink-0" />}
                       </button>
@@ -1657,25 +1965,25 @@ export default function AccessVault() {
             </div>
 
             {/* Add Token */}
-            <div className="border-t border-[#1a1a1a]/5 mt-2">
+            <div className={`border-t ${dm.divider} mt-2`}>
               <button
                 onClick={() => { setShowAddToken(!showAddToken); setCustomMint(""); setCustomDepositAddr(""); }}
-                className="w-full flex items-center justify-center md:justify-start gap-2 px-2 md:px-4 py-2.5 hover:bg-[#FAFAF5] transition-all text-left"
+                className={`w-full flex items-center justify-center md:justify-start gap-2 px-2 md:px-4 py-2.5 ${dark ? "hover:bg-[#FAFAF5]/5" : "hover:bg-[#FAFAF5]"} transition-all text-left`}
               >
-                <div className="w-9 h-9 rounded-full bg-[#1a1a1a]/5 flex items-center justify-center flex-shrink-0">
+                <div className={`w-9 h-9 rounded-full ${dm.iconCircle} flex items-center justify-center flex-shrink-0`}>
                   <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
-                    <path d="M8 3v10M3 8h10" stroke="#1a1a1a" strokeWidth="1.8" strokeLinecap="round" opacity="0.4"/>
+                    <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.4" className={dm.text}/>
                   </svg>
                 </div>
-                <span className="hidden md:block font-handwritten text-sm text-[#1a1a1a]/40">Add Token</span>
+                <span className={`hidden md:block font-handwritten text-sm ${dm.faint40}`}>Add Token</span>
               </button>
               {showAddToken && (
                 <div className="px-3 pb-3 space-y-2">
                   {/* Notice: SPL tokens only */}
-                  <div className="flex items-start gap-1.5 px-2 py-2 bg-[#1a1a1a]/4 rounded-sm border border-[#1a1a1a]/10">
+                  <div className={`flex items-start gap-1.5 px-2 py-2 ${dm.iconCircle} rounded-sm border ${dm.cardBorder}`}>
                     <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"><circle cx="8" cy="8" r="6.5" stroke="#F7931A" strokeWidth="1.3"/><path d="M8 5v3.5M8 10.5v.5" stroke="#F7931A" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                    <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
-                      <span className="font-bold text-[#1a1a1a]">SPL tokens only.</span> Never send native SOL to this Qoin. Use <span className="font-bold">wSOL</span> (Wrapped SOL) to hold SOL inside your Qoin.
+                    <p className={`font-handwritten text-xs ${dm.faint40} leading-relaxed`}>
+                      <span className={`font-bold ${dm.text}`}>SPL tokens only.</span> Never send native SOL to this Qoin. Use <span className="font-bold">wSOL</span> (Wrapped SOL) to hold SOL inside your Qoin.
                     </p>
                   </div>
                   <input
@@ -1696,57 +2004,57 @@ export default function AccessVault() {
                   {customMint === WSOL_MINT && (
                     <div className="border-2 border-[#F7931A]/50 bg-[#F7931A]/5 rounded-sm px-3 py-2.5 space-y-1">
                       <p className="font-body font-bold text-xs text-[#F7931A]">wSOL is already in your Qoin</p>
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
+                      <p className={`font-handwritten text-xs ${dm.faint40} leading-relaxed`}>
                         That address is <span className="font-bold">Wrapped SOL (wSOL)</span>. It is already available at the top of your token list. No need to add it again. Open the wSOL tab and copy its receive address.
                       </p>
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/40 mt-1">
+                      <p className={`font-handwritten text-xs ${dm.faint} mt-1`}>
                         Want to hold SOL? Wrap it to wSOL in Phantom first, then send wSOL to the receive address.
                       </p>
                     </div>
                   )}
                   {/* Native SOL system program address */}
                   {customMint === "11111111111111111111111111111111" && (
-                    <div className="border-2 border-red-300 bg-red-50 rounded-sm px-3 py-2.5 space-y-1">
+                    <div className={`border-2 border-red-300 ${dark ? "bg-red-900/20" : "bg-red-50"} rounded-sm px-3 py-2.5 space-y-1`}>
                       <p className="font-body font-bold text-xs text-red-500">Not an SPL token</p>
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
+                      <p className={`font-handwritten text-xs ${dm.faint40} leading-relaxed`}>
                         That is the Solana System Program address, not a token mint. Native SOL <span className="font-bold text-red-500">cannot</span> enter a Qoin. Use <span className="font-bold">wSOL</span> already available in your sidebar.
                       </p>
                     </div>
                   )}
                   {customMint && customMint !== WSOL_MINT && customMint !== "11111111111111111111111111111111" && !isValidPublicKey(customMint) && (
-                    <p className="font-handwritten text-xs text-[#1a1a1a]/30">Enter a valid token mint address (CA).</p>
+                    <p className={`font-handwritten text-xs ${dm.faint}`}>Enter a valid token mint address (CA).</p>
                   )}
                   {customTaError && (
                     <p className="font-handwritten text-xs text-[#F7931A]">{customTaError}</p>
                   )}
                   {isValidPublicKey(customMint) && customMint !== WSOL_MINT && !customDepositAddr && (
                     <div className="space-y-1.5">
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/50 leading-relaxed">
+                      <p className={`font-handwritten text-xs ${dm.muted} leading-relaxed`}>
                         This creates the deposit slot on-chain. Must be done before anyone sends this token to your Qoin.
                       </p>
                       <button
                         onClick={handleCreateTokenAccountSidebar}
                         disabled={customCreating}
-                        className="w-full font-body font-bold text-xs py-2 border-2 border-[#1a1a1a] rounded-sm bg-white hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        className={`w-full font-body font-bold text-xs py-2 border-2 ${dark ? "border-[#FAFAF5]/20 text-[#FAFAF5] hover:bg-[#FAFAF5]/10" : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"} rounded-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed`}
                       >
                         {customCreating ? "Opening Slot..." : "Open Slot + Get Address"}
                       </button>
                     </div>
                   )}
                   {customDepositAddr && (
-                    <div className="border-2 border-[#1a1a1a]/10 rounded-sm p-2 bg-[#FAFAF5]">
-                      <div className="font-handwritten text-xs text-[#1a1a1a]/50 mb-1.5 flex items-center gap-1.5">
+                    <div className={`border-2 ${dm.cardBorder} rounded-sm p-2 ${dm.card}`}>
+                      <div className={`font-handwritten text-xs ${dm.muted} mb-1.5 flex items-center gap-1.5`}>
                         Slot ready. Deposit address:
                         {customTaSig && <span className="text-[#F7931A] font-bold">On-chain.</span>}
                       </div>
-                      <div className="font-mono text-xs text-[#1a1a1a] break-all mb-2">{customDepositAddr}</div>
+                      <div className={`font-mono text-xs ${dm.text} break-all mb-2`}>{customDepositAddr}</div>
                       <button
                         onClick={async () => {
                           await navigator.clipboard.writeText(customDepositAddr);
                           setCustomMintCopied(true);
                           setTimeout(() => setCustomMintCopied(false), 2000);
                         }}
-                        className="w-full font-body font-bold text-xs py-1.5 border border-[#1a1a1a]/20 rounded-sm hover:bg-[#F7931A] hover:text-white hover:border-[#F7931A] transition-all"
+                        className={`w-full font-body font-bold text-xs py-1.5 border ${dm.cardBorder} rounded-sm hover:bg-[#F7931A] hover:text-white hover:border-[#F7931A] transition-all`}
                       >
                         {customMintCopied ? "Copied!" : "Copy Deposit Address"}
                       </button>
@@ -1757,12 +2065,12 @@ export default function AccessVault() {
             </div>
 
             {/* Sidebar footer desktop only */}
-            <div className="hidden md:block border-t-2 border-[#1a1a1a]/10 px-4 py-3 flex-shrink-0">
-              <div className="font-body font-bold text-xs text-[#1a1a1a]/50 mb-0.5">{t.access.portfolio}</div>
-              <div className="font-sketch text-lg text-[#1a1a1a]">
+            <div className={`hidden md:block border-t-2 ${dm.divider} px-4 py-3 flex-shrink-0`}>
+              <div className={`font-body font-bold text-xs ${dm.muted} mb-0.5`}>{t.access.portfolio}</div>
+              <div className={`font-sketch text-lg ${dm.text}`}>
                 {totalUSD > 0 ? `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "--"}
               </div>
-              <div className="font-mono text-xs text-[#1a1a1a]/40 mt-0.5">{1 + shield.tokens.length} assets</div>
+              <div className={`font-mono text-xs ${dm.faint40} mt-0.5`}>{1 + shield.tokens.length} assets</div>
             </div>
           </div>
 
@@ -1775,44 +2083,44 @@ export default function AccessVault() {
                 {selLogo ? (
                   <img src={selLogo} className="w-14 h-14 rounded-full object-cover flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-[#1a1a1a]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="font-sketch text-base text-[#1a1a1a]/30">{selLabel.slice(0, 3)}</span>
+                  <div className={`w-14 h-14 rounded-full ${dm.iconCircle} flex items-center justify-center flex-shrink-0`}>
+                    <span className={`font-sketch text-base ${dm.faint}`}>{selLabel.slice(0, 3)}</span>
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="font-sketch text-3xl text-[#1a1a1a] leading-none">{selLabel}</div>
+                    <div className={`font-sketch text-3xl ${dm.text} leading-none`}>{selLabel}</div>
                     {selHeld?.isLocked && <span className="font-body text-xs font-bold px-1.5 py-0.5 border border-[#F7931A] text-[#F7931A] rounded">Locked</span>}
                   </div>
-                  <div className="font-sketch text-xl mt-0.5 leading-none" style={{ color: selHeld && selHeld.balance > 0 ? "#F7931A" : "#1a1a1a", opacity: selHeld && selHeld.balance > 0 ? 1 : 0.3 }}>
+                  <div className="font-sketch text-xl mt-0.5 leading-none" style={{ color: selHeld && selHeld.balance > 0 ? "#F7931A" : (dark ? "#FAFAF5" : "#1a1a1a"), opacity: selHeld && selHeld.balance > 0 ? 1 : 0.3 }}>
                     {selHeld ? fmtBalance(selHeld.balance) : "0.00"} {selLabel}
                   </div>
                   {selDex && (
-                    <div className="font-mono text-sm text-[#1a1a1a]/50 mt-1">{fmtPrice(selDex.price)} per token</div>
+                    <div className={`font-mono text-sm ${dm.muted} mt-1`}>{fmtPrice(selDex.price)} per token</div>
                   )}
                   {selHeld && (() => {
                     const p = selHeld.pricePerToken ?? selDex?.price ?? null;
                     return p ? (
-                      <div className="font-mono text-sm text-[#1a1a1a]/60 mt-0.5">{fmtPrice(selHeld.balance * p)} total</div>
+                      <div className={`font-mono text-sm ${dm.faint40} mt-0.5`}>{fmtPrice(selHeld.balance * p)} total</div>
                     ) : null;
                   })()}
                 </div>
                 {activeChange !== null && (
                   <div className="text-right flex-shrink-0">
-                    <div className="font-sketch text-xl" style={{ color: activeChange >= 0 ? "#F7931A" : "#1a1a1a", opacity: activeChange >= 0 ? 1 : 0.7 }}>
+                    <div className="font-sketch text-xl" style={{ color: activeChange >= 0 ? "#F7931A" : (dark ? "#FAFAF5" : "#1a1a1a"), opacity: activeChange >= 0 ? 1 : 0.7 }}>
                       {activeChange >= 0 ? "+" : ""}{activeChange.toFixed(2)}%
                     </div>
-                    <div className="font-handwritten text-sm text-[#1a1a1a]/50">24h change</div>
+                    <div className={`font-handwritten text-sm ${dm.muted}`}>24h change</div>
                   </div>
                 )}
               </div>
 
               {/* PORTFOLIO SUMMARY CARD — visible when vault has >1 token with value */}
               {totalUSD > 0 && shield.tokens.filter(t => !t.isNft && (t.pricePerToken ?? dexPrices[t.mint]?.price) != null).length > 1 && (
-                <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] px-5 py-4">
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} shadow-[3px_3px_0_#1a1a1a] px-5 py-4`}>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-widest">Qoin Portfolio</span>
-                    <span className="font-sketch text-xl text-[#1a1a1a]">${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-widest`}>Qoin Portfolio</span>
+                    <span className={`font-sketch text-xl ${dm.text}`}>${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="space-y-2">
                     {shield.tokens.filter(t => !t.isNft).map(t => {
@@ -1825,14 +2133,14 @@ export default function AccessVault() {
                           {t.logo ? (
                             <img src={t.logo} className="w-4 h-4 rounded-full flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                           ) : (
-                            <div className="w-4 h-4 rounded-full bg-[#1a1a1a]/10 flex-shrink-0" />
+                            <div className={`w-4 h-4 rounded-full ${dm.iconCircle} flex-shrink-0`} />
                           )}
-                          <span className="font-body font-bold text-xs text-[#1a1a1a]/70 w-14 truncate flex-shrink-0">{t.symbol}</span>
-                          <div className="flex-1 h-1.5 bg-[#1a1a1a]/5 rounded-full overflow-hidden">
+                          <span className={`font-body font-bold text-xs ${dm.faint40} w-14 truncate flex-shrink-0`}>{t.symbol}</span>
+                          <div className={`flex-1 h-1.5 ${dm.iconCircle} rounded-full overflow-hidden`}>
                             <div className="h-full bg-[#F7931A] rounded-full transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="font-mono text-xs text-[#1a1a1a]/50 w-20 text-right flex-shrink-0">${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          <span className="font-mono text-xs text-[#1a1a1a]/30 w-10 text-right flex-shrink-0">{pct.toFixed(1)}%</span>
+                          <span className={`font-mono text-xs ${dm.muted} w-20 text-right flex-shrink-0`}>${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className={`font-mono text-xs ${dm.faint} w-10 text-right flex-shrink-0`}>{pct.toFixed(1)}%</span>
                         </div>
                       );
                     })}
@@ -1842,13 +2150,13 @@ export default function AccessVault() {
 
               {/* SETUP REQUIRED NOTICE — large, centered, mobile+desktop */}
               {needsSetup && (
-                <div className="w-full border-2 border-[#F7931A] bg-[#FFF8F0] rounded-sm p-6 md:p-10 flex flex-col items-center text-center gap-5">
-                  <div className="w-14 h-14 rounded-full border-2 border-[#F7931A]/40 bg-white flex items-center justify-center">
+                <div className={`w-full border-2 border-[#F7931A] ${dark ? "bg-[#F7931A]/5" : "bg-[#FFF8F0]"} rounded-sm p-6 md:p-10 flex flex-col items-center text-center gap-5`}>
+                  <div className={`w-14 h-14 rounded-full border-2 border-[#F7931A]/40 ${dm.inputBg.split(" ")[0]} flex items-center justify-center`}>
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#F7931A" strokeWidth="1.8"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="#F7931A" strokeWidth="1.8" strokeLinecap="round"/></svg>
                   </div>
                   <div>
-                    <p className="font-sketch text-2xl md:text-3xl text-[#1a1a1a] mb-2">Setup Required</p>
-                    <p className="font-body text-sm md:text-base text-[#1a1a1a]/60 max-w-sm leading-relaxed">
+                    <p className={`font-sketch text-2xl md:text-3xl ${dm.text} mb-2`}>Setup Required</p>
+                    <p className={`font-body text-sm md:text-base ${dm.faint40} max-w-sm leading-relaxed`}>
                       Initialize token deposit slots before you can receive or send tokens. This is a one-time setup and is completely free.
                     </p>
                   </div>
@@ -1866,7 +2174,7 @@ export default function AccessVault() {
                 </div>
               )}
 
-              {/* ACTION BUTTONS — Receive / Send */}
+              {/* ACTION BUTTONS — Receive / Send / Swap */}
               <div className="flex gap-3">
                 <button
                   onClick={() => { if (!needsSetup) setActiveTab(activeTab === "receive" ? null : "receive"); }}
@@ -1874,10 +2182,12 @@ export default function AccessVault() {
                   title={needsSetup ? "Setup token slots first" : undefined}
                   className={`flex-1 py-4 font-body font-bold text-base rounded-sm border-2 transition-all flex items-center justify-center gap-2 ${
                     needsSetup
-                      ? "border-[#1a1a1a]/20 bg-[#1a1a1a]/5 text-[#1a1a1a]/25 cursor-not-allowed"
+                      ? dark ? "border-[#FAFAF5]/10 bg-[#FAFAF5]/5 text-[#FAFAF5]/25 cursor-not-allowed" : "border-[#1a1a1a]/20 bg-[#1a1a1a]/5 text-[#1a1a1a]/25 cursor-not-allowed"
                       : activeTab === "receive"
                         ? "border-[#1a1a1a] bg-[#1a1a1a] text-white"
-                        : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"
+                        : dark
+                          ? "border-[#FAFAF5]/20 text-[#FAFAF5]/80 hover:bg-[#FAFAF5]/10"
+                          : "border-[#1a1a1a] bg-white text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-white"
                   }`}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1894,30 +2204,51 @@ export default function AccessVault() {
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 14V5M4 9l4-4 4 4M2 3h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   Send
                 </button>
+                <button
+                  onClick={() => setActiveTab(activeTab === "swap" ? null : "swap")}
+                  className={`flex-1 py-4 font-body font-bold text-base rounded-sm border-2 transition-all flex items-center justify-center gap-2 ${
+                    activeTab === "swap"
+                      ? dark ? "border-[#FAFAF5]/20 bg-[#FAFAF5]/10 text-[#FAFAF5]/60" : "border-[#1a1a1a]/40 bg-[#1a1a1a]/10 text-[#1a1a1a]/60"
+                      : dark ? "border-[#FAFAF5]/10 text-[#FAFAF5]/30 hover:border-[#FAFAF5]/20 hover:text-[#FAFAF5]/50" : "border-[#1a1a1a]/20 text-[#1a1a1a]/30 hover:border-[#1a1a1a]/40 hover:text-[#1a1a1a]/50"
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h10M9 2l3 3-3 3M14 11H4M7 8l-3 3 3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Swap
+                </button>
               </div>
+              {/* SWAP COMING SOON PANEL */}
+              {activeTab === "swap" && (
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.sectionHead} px-6 py-8 text-center space-y-3`}>
+                  <div className={`font-sketch text-2xl ${dm.faint40}`}>Swap</div>
+                  <div className={`font-handwritten text-base ${dm.muted} leading-relaxed`}>
+                    Swap with 2-key signing protection is in development.<br />Coming soon.
+                  </div>
+                  <button onClick={() => setActiveTab(null)} className={`font-handwritten text-xs ${dm.faint} hover:text-red-500 transition-colors`}>close</button>
+                </div>
+              )}
 
               {/* RECEIVE PANEL */}
               {activeTab === "receive" && (
-                <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} shadow-[3px_3px_0_#1a1a1a] overflow-hidden`}>
                   <div className="flex flex-col items-center px-6 py-8 space-y-5">
-                    <div className="font-sketch text-2xl text-[#1a1a1a]">Receive {selLabel}</div>
+                    <div className={`font-sketch text-2xl ${dm.text}`}>Receive {selLabel}</div>
                     {sidebarSelected === WSOL_MINT && (
-                      <div className="w-full border-2 border-red-400 bg-red-50 rounded-sm px-4 py-3 space-y-1.5">
+                      <div className={`w-full border-2 border-red-400 ${dark ? "bg-red-900/20" : "bg-red-50"} rounded-sm px-4 py-3 space-y-1.5`}>
                         <div className="flex items-center gap-2">
                           <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5 flex-shrink-0"><path d="M10 2L2 17h16L10 2z" stroke="#ef4444" strokeWidth="1.8" strokeLinejoin="round"/><path d="M10 8v4M10 13.5v.5" stroke="#ef4444" strokeWidth="1.6" strokeLinecap="round"/></svg>
                           <p className="font-body font-bold text-sm text-red-500">Send wSOL only, not native SOL</p>
                         </div>
-                        <p className="font-handwritten text-xs text-[#1a1a1a]/60 leading-relaxed">
+                        <p className={`font-handwritten text-xs ${dm.faint40} leading-relaxed`}>
                           This accepts <span className="font-bold">wSOL (Wrapped SOL)</span> only. Native SOL sent here will be permanently lost. Wrap SOL to wSOL in Phantom first.
                         </p>
                       </div>
                     )}
-                    <div className="border-4 border-[#1a1a1a] p-4 rounded-sm bg-white shadow-[4px_4px_0_#1a1a1a]">
-                      <QRCodeSVG value={receiveAddr} size={200} bgColor="#ffffff" fgColor="#1a1a1a" level="M" />
+                    <div className={`border-4 border-[#1a1a1a] p-4 rounded-sm ${dark ? "bg-[#1a1a1a]" : "bg-white"} shadow-[4px_4px_0_#1a1a1a]`}>
+                      <QRCodeSVG value={receiveAddr} size={200} bgColor={dark ? "#1a1a1a" : "#ffffff"} fgColor={dark ? "#FAFAF5" : "#1a1a1a"} level="M" />
                     </div>
-                    <div className="w-full bg-[#FAFAF5] border-2 border-[#1a1a1a]/10 rounded-sm px-4 py-3 text-center">
-                      <div className="font-mono text-xs text-[#1a1a1a]/40 mb-1">Address</div>
-                      <div className="font-mono text-sm text-[#1a1a1a] break-all">{receiveAddr}</div>
+                    <div className={`w-full ${dm.sectionHead} border-2 ${dm.cardBorder} rounded-sm px-4 py-3 text-center`}>
+                      <div className={`font-mono text-xs ${dm.faint40} mb-1`}>Address</div>
+                      <div className={`font-mono text-sm ${dm.text} break-all`}>{receiveAddr}</div>
                     </div>
                     <div className="flex gap-2 w-full">
                       <button
@@ -1934,23 +2265,23 @@ export default function AccessVault() {
                         href={explorerAddressUrl(receiveAddr, false)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 border-2 border-[#1a1a1a]/20 rounded-sm font-body font-bold text-sm text-[#1a1a1a]/60 hover:border-[#F7931A] hover:text-[#F7931A] transition-all bg-white"
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-3 border-2 ${dm.cardBorder} rounded-sm font-body font-bold text-sm ${dm.muted} hover:border-[#F7931A] hover:text-[#F7931A] transition-all ${dm.card}`}
                       >
                         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M5.5 2H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V7.5M8 1h4m0 0v4m0-4L5.5 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         Orb
                       </a>
                     </div>
                     {sidebarSelected === WSOL_MINT ? (
-                      <div className="w-full border-2 border-[#1a1a1a]/10 bg-[#FAFAF5] rounded-sm px-4 py-3 space-y-1.5">
-                        <p className="font-body font-bold text-xs text-[#1a1a1a] uppercase tracking-wide">How to add SOL to your Qoin:</p>
+                      <div className={`w-full border-2 ${dm.cardBorder} ${dm.sectionHead} rounded-sm px-4 py-3 space-y-1.5`}>
+                        <p className={`font-body font-bold text-xs ${dm.text} uppercase tracking-wide`}>How to add SOL to your Qoin:</p>
                         <ol className="space-y-1.5">
-                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">1</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Open Phantom</span></li>
-                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">2</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Use <span className="font-bold">Swap or Wrap</span> to convert SOL to wSOL</span></li>
-                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">3</span><span className="font-handwritten text-sm text-[#1a1a1a]/70">Send <span className="font-bold">wSOL</span> to the address above</span></li>
+                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">1</span><span className={`font-handwritten text-sm ${dm.faint40}`}>Open Phantom</span></li>
+                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">2</span><span className={`font-handwritten text-sm ${dm.faint40}`}>Use <span className="font-bold">Swap or Wrap</span> to convert SOL to wSOL</span></li>
+                          <li className="flex items-start gap-2"><span className="font-sketch text-xs text-[#F7931A] mt-0.5">3</span><span className={`font-handwritten text-sm ${dm.faint40}`}>Send <span className="font-bold">wSOL</span> to the address above</span></li>
                         </ol>
                       </div>
                     ) : (
-                      <p className="font-handwritten text-xs text-[#1a1a1a]/35 text-center">
+                      <p className={`font-handwritten text-xs ${dm.faint} text-center`}>
                         Use this address to receive {selLabel} on Solana. Do not send to the Qoin address directly.
                       </p>
                     )}
@@ -1960,13 +2291,13 @@ export default function AccessVault() {
 
               {/* SEND PANEL */}
               {activeTab === "send" && (
-                <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} shadow-[3px_3px_0_#1a1a1a] overflow-hidden`}>
                   <div className="px-5 py-5 space-y-4">
                     {accessMode === "connect-wallets" && (
-                      <div className="border-2 border-[#1a1a1a]/10 rounded-sm overflow-hidden">
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAF5] border-b border-[#1a1a1a]/10">
+                      <div className={`border-2 ${dm.cardBorder} rounded-sm overflow-hidden`}>
+                        <div className={`flex items-center gap-2 px-4 py-2.5 ${dm.sectionHead} border-b ${dm.divider}`}>
                           <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
-                          <span className="font-sketch text-sm text-[#1a1a1a]">Signing wallets</span>
+                          <span className={`font-sketch text-sm ${dm.text}`}>Signing wallets</span>
                           {phantomPubkey && phantom2Pubkey && !txLoading && (
                             <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both ready</span>
                           )}
@@ -1989,14 +2320,14 @@ export default function AccessVault() {
                                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: phantomPubkey ? "#F7931A" : "#1a1a1a", opacity: phantomPubkey ? 1 : 0.15 }} />
                               )}
                               <img src="/phantom-logo.png" className="w-5 h-5 rounded-lg flex-shrink-0" alt="Phantom" />
-                              <span className="font-body font-bold text-xs text-[#1a1a1a]/60">Phantom (Key 1)</span>
+                              <span className={`font-body font-bold text-xs ${dm.muted}`}>Phantom (Key 1)</span>
                               {txLoading && signingStep === "phantom" && <span className="font-handwritten text-xs text-[#F7931A]">Approve in Phantom</span>}
                               {(signingStep === "solflare" || signingStep === "broadcasting") && <span className="font-handwritten text-xs text-green-600">Signed</span>}
                             </div>
                             {phantomPubkey ? (
-                              <span className="font-mono text-xs text-[#1a1a1a]/40">{phantomPubkey.slice(0, 6)}...{phantomPubkey.slice(-4)}</span>
+                              <span className={`font-mono text-xs ${dm.faint40}`}>{phantomPubkey.slice(0, 6)}...{phantomPubkey.slice(-4)}</span>
                             ) : (
-                              <span className="font-handwritten text-xs text-[#1a1a1a]/25">Not connected</span>
+                              <span className={`font-handwritten text-xs ${dm.faint}`}>Not connected</span>
                             )}
                           </div>
                           <div className="flex items-center justify-between">
@@ -2009,52 +2340,52 @@ export default function AccessVault() {
                                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: phantom2Pubkey ? "#F7931A" : "#1a1a1a", opacity: phantom2Pubkey ? 1 : 0.15 }} />
                               )}
                               <img src="/solflare-logo.png" className="w-5 h-5 rounded-lg flex-shrink-0" alt="Solflare K2" />
-                              <span className="font-body font-bold text-xs text-[#1a1a1a]/60">Solflare (Key 2)</span>
+                              <span className={`font-body font-bold text-xs ${dm.muted}`}>Solflare (Key 2)</span>
                               {txLoading && signingStep === "solflare" && <span className="font-handwritten text-xs text-[#F7931A]">Approve in Solflare</span>}
                               {signingStep === "broadcasting" && <span className="font-handwritten text-xs text-green-600">Signed</span>}
                             </div>
                             {phantom2Pubkey ? (
-                              <span className="font-mono text-xs text-[#1a1a1a]/40">{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
+                              <span className={`font-mono text-xs ${dm.faint40}`}>{phantom2Pubkey.slice(0, 6)}...{phantom2Pubkey.slice(-4)}</span>
                             ) : (
-                              <span className="font-handwritten text-xs text-[#1a1a1a]/25">Not connected</span>
+                              <span className={`font-handwritten text-xs ${dm.faint}`}>Not connected</span>
                             )}
                           </div>
-                          <p className="font-handwritten text-xs text-[#1a1a1a]/25 pt-0.5">
+                          <p className={`font-handwritten text-xs ${dm.faint} pt-0.5`}>
                             Phantom signs first, then Solflare. Two separate approvals. One transaction on-chain.
                           </p>
                         </div>
                       </div>
                     )}
                     {accessMode === "connect-wallets" && walletMismatch && (
-                      <div className="border-2 border-[#F7931A] bg-[#FFF7ED] rounded-sm p-3 flex gap-2.5 items-start">
+                      <div className={`border-2 border-[#F7931A] ${dark ? "bg-[#F7931A]/5" : "bg-[#FFF7ED]"} rounded-sm p-3 flex gap-2.5 items-start`}>
                         <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5 flex-shrink-0 mt-0.5">
                           <path d="M10 3L18 17H2L10 3Z" stroke="#F7931A" strokeWidth="1.8" strokeLinejoin="round"/>
                           <path d="M10 9v4M10 14.5v.5" stroke="#F7931A" strokeWidth="1.8" strokeLinecap="round"/>
                         </svg>
-                        <p className="font-handwritten text-sm text-[#1a1a1a]/80 leading-relaxed">{walletMismatch}</p>
+                        <p className={`font-handwritten text-sm ${dm.faint40} leading-relaxed`}>{walletMismatch}</p>
                       </div>
                     )}
                     {accessMode === "cold-keys" && (
-                      <div className="border-2 border-[#1a1a1a]/10 rounded-sm overflow-hidden">
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#FAFAF5] border-b border-[#1a1a1a]/10">
+                      <div className={`border-2 ${dm.cardBorder} rounded-sm overflow-hidden`}>
+                        <div className={`flex items-center gap-2 px-4 py-2.5 ${dm.sectionHead} border-b ${dm.divider}`}>
                           <SketchTwoKeys className="w-7 h-4 flex-shrink-0" />
-                          <span className="font-sketch text-sm text-[#1a1a1a]">Paste your two cold keys</span>
+                          <span className={`font-sketch text-sm ${dm.text}`}>Paste your two cold keys</span>
                           {hasBothKeys && <span className="ml-auto font-handwritten text-sm text-[#F7931A]">Both keys loaded</span>}
                         </div>
-                        <p className="font-handwritten text-xs text-[#1a1a1a]/30 px-4 pt-2.5">Keys are used to sign locally. They are never sent to any server.</p>
+                        <p className={`font-handwritten text-xs ${dm.faint} px-4 pt-2.5`}>Keys are used to sign locally. They are never sent to any server.</p>
                         <div className="p-4 space-y-3">
                           <div>
-                            <label className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-wide mb-1 block">Private Key 1</label>
+                            <label className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-wide mb-1 block`}>Private Key 1</label>
                             <div className="relative">
                               <input type={showPk1 ? "text" : "password"} placeholder="base58 private key..." value={pk1} onChange={(e) => setPk1(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} className="input-sketch text-sm font-mono py-2 pr-16" />
-                              <button onClick={() => setShowPk1(!showPk1)} className="absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#1a1a1a] transition-colors">{showPk1 ? "Hide" : "Show"}</button>
+                              <button onClick={() => setShowPk1(!showPk1)} className={`absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm ${dm.muted} hover:${dm.text} transition-colors`}>{showPk1 ? "Hide" : "Show"}</button>
                             </div>
                           </div>
                           <div>
-                            <label className="font-body font-bold text-xs text-[#1a1a1a]/50 uppercase tracking-wide mb-1 block">Private Key 2</label>
+                            <label className={`font-body font-bold text-xs ${dm.muted} uppercase tracking-wide mb-1 block`}>Private Key 2</label>
                             <div className="relative">
                               <input type={showPk2 ? "text" : "password"} placeholder="base58 private key..." value={pk2} onChange={(e) => setPk2(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} className="input-sketch text-sm font-mono py-2 pr-16" />
-                              <button onClick={() => setShowPk2(!showPk2)} className="absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm text-[#1a1a1a]/50 hover:text-[#1a1a1a] transition-colors">{showPk2 ? "Hide" : "Show"}</button>
+                              <button onClick={() => setShowPk2(!showPk2)} className={`absolute right-2 top-1/2 -translate-y-1/2 font-handwritten text-sm ${dm.muted} hover:${dm.text} transition-colors`}>{showPk2 ? "Hide" : "Show"}</button>
                             </div>
                           </div>
                           {(pk1 && !pk1Valid) && <p className="font-handwritten text-sm text-[#F7931A]">Key 1 is invalid.</p>}
@@ -2069,35 +2400,35 @@ export default function AccessVault() {
                       return (
                         <>
                           <div>
-                            <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">Recipient Address</label>
+                            <label className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-wide mb-1.5 block`}>Recipient Address</label>
                             <input type="text" placeholder="Solana wallet address..." value={recipient} onChange={(e) => setRecipient(e.target.value)} disabled={!canSend || !selHeld} className="input-sketch text-sm font-mono py-2.5 disabled:opacity-30" />
                             {recipient && !isValidPublicKey(recipient) && (
                               <div className="flex items-center gap-1.5 mt-1 font-handwritten text-sm"><SketchX className="w-4 h-4" /> Invalid address</div>
                             )}
                           </div>
                           <div>
-                            <label className="font-handwritten text-xs text-[#1a1a1a]/40 uppercase tracking-wide mb-1.5 block">
+                            <label className={`font-handwritten text-xs ${dm.faint40} uppercase tracking-wide mb-1.5 block`}>
                               Amount
-                              <span className="ml-2 text-[#1a1a1a]/25 normal-case">balance: {(selHeld?.balance ?? 0).toLocaleString()} {selLabel}</span>
+                              <span className={`ml-2 ${dm.faint} normal-case`}>balance: {(selHeld?.balance ?? 0).toLocaleString()} {selLabel}</span>
                             </label>
                             <div className="flex gap-2">
                               <input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} min="0" disabled={!canSend || !selHeld} className="input-sketch text-sm py-2.5 flex-1 disabled:opacity-30" />
                               <button onClick={() => setAmount((selHeld?.balance ?? 0).toString())} disabled={!canSend || !selHeld} className="font-body font-bold text-xs px-3 border-2 border-[#1a1a1a] rounded-sm hover:bg-[#1a1a1a] hover:text-white transition-all disabled:opacity-25 disabled:cursor-not-allowed">MAX</button>
                             </div>
                             {amount && parseFloat(amount) > (selHeld?.balance ?? 0) && (
-                              <p className="font-handwritten text-sm text-[#1a1a1a]/60 mt-1">Exceeds balance</p>
+                              <p className={`font-handwritten text-sm ${dm.muted} mt-1`}>Exceeds balance</p>
                             )}
                           </div>
                           {selHeld?.isLocked && (
-                            <div className="border-2 border-[#F7931A] bg-[#FFF8F0] rounded-sm p-3 font-body text-sm text-[#1a1a1a]/80 leading-relaxed">
+                            <div className={`border-2 border-[#F7931A] ${dark ? "bg-[#F7931A]/5" : "bg-[#FFF8F0]"} rounded-sm p-3 font-body text-sm ${dm.faint40} leading-relaxed`}>
                               <span className="font-bold">Cannot send.</span> This token was deposited to a nested account before the Qoin token slot was initialized. The token is held read-only. To receive sendable tokens, use the deposit address for this token going forward.
                             </div>
                           )}
-                          {txError && <div className="border-2 border-[#F7931A] bg-white rounded-sm p-3 font-body text-sm text-[#1a1a1a]/70">{txError}</div>}
+                          {txError && <div className={`border-2 border-[#F7931A] ${dm.card} rounded-sm p-3 font-body text-sm ${dm.muted}`}>{txError}</div>}
                           {txSig && (
-                            <div className="border-2 border-[#1a1a1a] bg-white rounded-sm p-4 shadow-[3px_3px_0_#1a1a1a]">
-                              <div className="flex items-center gap-2 font-sketch text-base text-[#1a1a1a] mb-2"><SketchCheckmark className="w-5 h-5" /> Sent!</div>
-                              <div className="font-mono text-sm break-all text-[#1a1a1a]/60 mb-2">{txSig}</div>
+                            <div className={`border-2 ${dm.cardBorder} ${dm.card} rounded-sm p-4 shadow-[3px_3px_0_#1a1a1a]`}>
+                              <div className={`flex items-center gap-2 font-sketch text-base ${dm.text} mb-2`}><SketchCheckmark className="w-5 h-5" /> Sent!</div>
+                              <div className={`font-mono text-sm break-all ${dm.muted} mb-2`}>{txSig}</div>
                               <a href={explorerUrl(txSig, false)} target="_blank" rel="noopener noreferrer" className="font-handwritten text-sm text-[#F7931A] hover:underline">View on Orb</a>
                             </div>
                           )}
@@ -2118,7 +2449,7 @@ export default function AccessVault() {
                                 : t.access.sendBtn}
                           </button>
                           {canSend && !txLoading && (
-                            <p className="font-handwritten text-xs text-[#1a1a1a]/25 text-center">
+                            <p className={`font-handwritten text-xs ${dm.faint} text-center`}>
                               {accessMode === "connect-wallets"
                                 ? "Two wallet popups, one after the other. Both must approve."
                                 : "Both keys sign locally in your browser. Never sent to any server."}
@@ -2133,12 +2464,12 @@ export default function AccessVault() {
 
               {/* PRICE CHART — shown when no action selected */}
               {activeTab === null && (
-                <div className="border-2 border-[#1a1a1a] rounded-sm bg-white overflow-hidden shadow-[3px_3px_0_#1a1a1a]">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]/10">
-                    <span className="font-sketch text-base text-[#1a1a1a]">7-Day Price</span>
-                    {chartLoading && <span className="font-handwritten text-sm text-[#1a1a1a]/30">Loading...</span>}
+                <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} overflow-hidden shadow-[3px_3px_0_#1a1a1a]`}>
+                  <div className={`flex items-center justify-between px-4 py-3 border-b ${dm.divider}`}>
+                    <span className={`font-sketch text-base ${dm.text}`}>7-Day Price</span>
+                    {chartLoading && <span className={`font-handwritten text-sm ${dm.faint}`}>Loading...</span>}
                     {!chartLoading && chartData.length === 0 && (
-                      <span className="font-handwritten text-sm text-[#1a1a1a]/50">No price data</span>
+                      <span className={`font-handwritten text-sm ${dm.muted}`}>No price data</span>
                     )}
                   </div>
                 {chartData.length > 0 ? (
@@ -2154,7 +2485,7 @@ export default function AccessVault() {
                         <XAxis
                           dataKey="time"
                           tickFormatter={(v) => new Date(v).toLocaleDateString("en", { month: "short", day: "numeric" })}
-                          tick={{ fontFamily: "monospace", fontSize: 10, fill: "#1a1a1a", opacity: 0.3 }}
+                          tick={{ fontFamily: "monospace", fontSize: 10, fill: dark ? "#FAFAF5" : "#1a1a1a", opacity: 0.3 }}
                           axisLine={false}
                           tickLine={false}
                           interval="preserveStartEnd"
@@ -2162,7 +2493,7 @@ export default function AccessVault() {
                         <YAxis
                           domain={["auto", "auto"]}
                           tickFormatter={(v) => v >= 1 ? `$${v.toFixed(0)}` : `$${v.toFixed(4)}`}
-                          tick={{ fontFamily: "monospace", fontSize: 10, fill: "#1a1a1a", opacity: 0.3 }}
+                          tick={{ fontFamily: "monospace", fontSize: 10, fill: dark ? "#FAFAF5" : "#1a1a1a", opacity: 0.3 }}
                           axisLine={false}
                           tickLine={false}
                           width={60}
@@ -2170,9 +2501,9 @@ export default function AccessVault() {
                         <Tooltip
                           formatter={(v: number) => [`$${v >= 1 ? v.toFixed(2) : v.toFixed(6)}`, selLabel]}
                           labelFormatter={(t) => new Date(t).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
-                          contentStyle={{ fontFamily: "monospace", fontSize: 12, border: "2px solid #1a1a1a", borderRadius: 0, background: "#fff" }}
-                          itemStyle={{ color: "#1a1a1a" }}
-                          labelStyle={{ color: "#1a1a1a", opacity: 0.4 }}
+                          contentStyle={{ fontFamily: "monospace", fontSize: 12, border: `2px solid ${dark ? "#FAFAF5" : "#1a1a1a"}`, borderRadius: 0, background: dark ? "#0f0f0f" : "#fff" }}
+                          itemStyle={{ color: dark ? "#FAFAF5" : "#1a1a1a" }}
+                          labelStyle={{ color: dark ? "#FAFAF5" : "#1a1a1a", opacity: 0.4 }}
                         />
                         <Area
                           type="monotone"
@@ -2189,8 +2520,8 @@ export default function AccessVault() {
                 ) : (
                   <div className="h-56 flex items-center justify-center">
                     <div className="text-center">
-                      <div className="font-sketch text-2xl text-[#1a1a1a]/10 mb-1">--</div>
-                      <div className="font-handwritten text-sm text-[#1a1a1a]/40">Price chart not available</div>
+                      <div className={`font-sketch text-2xl ${dm.faint} mb-1`} style={{ opacity: 0.1 }}>--</div>
+                      <div className={`font-handwritten text-sm ${dm.faint40}`}>Price chart not available</div>
                     </div>
                   </div>
                 )}
@@ -2206,22 +2537,22 @@ export default function AccessVault() {
               )}
 
               {/* HISTORY CARD */}
-              <div className="border-2 border-[#1a1a1a] rounded-sm bg-white shadow-[3px_3px_0_#1a1a1a] overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#1a1a1a]/10">
+              <div className={`border-2 ${dm.cardBorder} rounded-sm ${dm.card} shadow-[3px_3px_0_#1a1a1a] overflow-hidden`}>
+                <div className={`flex items-center justify-between px-4 py-3 border-b-2 ${dm.divider}`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-sketch text-base text-[#1a1a1a]">History</span>
-                    {txHistoryLoading && <span className="font-handwritten text-xs text-[#1a1a1a]/30">Loading...</span>}
+                    <span className={`font-sketch text-base ${dm.text}`}>History</span>
+                    {txHistoryLoading && <span className={`font-handwritten text-xs ${dm.faint}`}>Loading...</span>}
                   </div>
                   <div className="flex gap-1">
                     <button
                       onClick={() => setHistoryTab("received")}
-                      className={`px-3 py-1 text-xs font-body font-bold rounded-sm transition-all ${historyTab === "received" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                      className={`px-3 py-1 text-xs font-body font-bold rounded-sm transition-all ${historyTab === "received" ? (dark ? "bg-[#FAFAF5] text-[#0f0f0f]" : "bg-[#1a1a1a] text-white") : `${dm.faint40} ${dm.sidebarHover}`}`}
                     >
                       Received
                     </button>
                     <button
                       onClick={() => setHistoryTab("sent")}
-                      className={`px-3 py-1 text-xs font-body font-bold rounded-sm transition-all ${historyTab === "sent" ? "bg-[#1a1a1a] text-white" : "text-[#1a1a1a]/40 hover:bg-[#FAFAF5]"}`}
+                      className={`px-3 py-1 text-xs font-body font-bold rounded-sm transition-all ${historyTab === "sent" ? (dark ? "bg-[#FAFAF5] text-[#0f0f0f]" : "bg-[#1a1a1a] text-white") : `${dm.faint40} ${dm.sidebarHover}`}`}
                     >
                       Sent
                     </button>
@@ -2249,7 +2580,7 @@ export default function AccessVault() {
                     if (!txHistoryLoading && filtered.length === 0) {
                       return (
                         <div className="py-10 text-center">
-                          <p className="font-handwritten text-sm text-[#1a1a1a]/30">
+                          <p className={`font-handwritten text-sm ${dm.faint}`}>
                             {historyTab === "received" ? "No received transactions yet." : "No sent transactions yet."}
                           </p>
                         </div>
@@ -2257,7 +2588,7 @@ export default function AccessVault() {
                     }
 
                     return (
-                      <div className="divide-y divide-[#1a1a1a]/6">
+                      <div className={`divide-y ${dm.divider}`}>
                         {filtered.map((tx) => {
                           const tt = tx.tokenTransfers.find(t => isMyTokenTransfer(t));
                           const isIn = tt ? isTokenIn(tt) : null;
@@ -2274,7 +2605,7 @@ export default function AccessVault() {
                               href={explorerUrl(tx.sig, false)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-3 px-4 py-3 hover:bg-[#FAFAF5] transition-all group"
+                              className={`flex items-center gap-3 px-4 py-3 ${dm.sidebarHover} transition-all group`}
                             >
                               <span
                                 className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${tx.err ? "bg-red-100 text-red-500" : isIn === true ? "bg-green-100 text-green-600" : "bg-[#F7931A]/10 text-[#F7931A]"}`}
@@ -2282,11 +2613,11 @@ export default function AccessVault() {
                                 {tx.err ? "!" : isIn === true ? "↓" : "↑"}
                               </span>
                               <div className="flex-1 min-w-0">
-                                <div className="font-mono text-xs text-[#1a1a1a]/60 truncate">{tx.sig.slice(0, 20)}...</div>
-                                <div className="font-handwritten text-xs text-[#1a1a1a]/35 mt-0.5">{date}</div>
+                                <div className={`font-mono text-xs ${dm.muted} truncate`}>{tx.sig.slice(0, 20)}...</div>
+                                <div className={`font-handwritten text-xs ${dm.faint} mt-0.5`}>{date}</div>
                               </div>
                               {amt && (
-                                <span className="font-body font-bold text-sm text-[#1a1a1a] flex-shrink-0 tabular-nums">
+                                <span className={`font-body font-bold text-sm ${dm.text} flex-shrink-0 tabular-nums`}>
                                   {isIn === false ? "-" : ""}{amt} {sym}
                                 </span>
                               )}
@@ -2299,7 +2630,7 @@ export default function AccessVault() {
                             <button
                               onClick={loadMoreTxHistory}
                               disabled={txHistoryLoadingMore}
-                              className="w-full py-2.5 border-2 border-[#1a1a1a]/20 rounded-sm font-body font-bold text-xs text-[#1a1a1a]/50 hover:border-[#1a1a1a] hover:text-[#1a1a1a] transition-all disabled:opacity-30"
+                              className={`w-full py-2.5 border-2 ${dm.cardBorder} rounded-sm font-body font-bold text-xs ${dm.muted} hover:${dm.cardBorder} hover:${dm.text} transition-all disabled:opacity-30`}
                             >
                               {txHistoryLoadingMore ? "Loading..." : "Load more"}
                             </button>
