@@ -58,8 +58,8 @@ export default function QonjointProtocol() {
   const flow = [
     { icon: <SketchTwoKeys className="w-8 h-8" />, label: "Two Keys Registered", desc: "Your two public keys are written on-chain as Qonjoint controllers of your Qoin." },
     { icon: <SketchShield className="w-8 h-8" />, label: "Transfer Requested", desc: "Any attempt to move tokens triggers the Qonjoint check on-chain." },
-    { icon: <SketchKey className="w-8 h-8" />, label: "Key 1 Signs", desc: "The transaction is built locally and signed by your first private key." },
-    { icon: <SketchKey className="w-8 h-8" />, label: "Key 2 Signs", desc: "The partially-signed transaction is then signed by your second private key." },
+    { icon: <SketchKey className="w-8 h-8" />, label: "Key 1 Signs", desc: "The transaction is built locally and signed by Key 1. In cold key mode: your first private key. In wallet connect mode: Phantom on Solana, or your first MetaMask account on Ethereum." },
+    { icon: <SketchKey className="w-8 h-8" />, label: "Key 2 Signs", desc: "The partially-signed transaction is then signed by Key 2. In cold key mode: your second private key. In wallet connect mode: Solflare on Solana, or your second MetaMask account on Ethereum." },
     { icon: <SketchNetwork className="w-8 h-8" />, label: "Program Confirms", desc: "The on-chain program verifies both signatures match the registered keys. Transfer proceeds." },
   ];
 
