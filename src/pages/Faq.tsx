@@ -1,7 +1,8 @@
 import { useState } from "react";
 import SubpageLayout from "@/components/SubpageLayout";
 import { useApp } from "@/contexts/AppContext";
-import { SketchShield, SketchCoin, SketchNetwork } from "@/components/sketches";
+import { SketchShield, SketchNetwork } from "@/components/sketches";
+import { ChainLogos } from "@/components/ChainLogos";
 
 const HeroDecor = () => (
   <svg viewBox="0 0 900 280" fill="none" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
@@ -38,18 +39,19 @@ export default function Faq() {
 
   const quickAnswers = [
     { q: "Is this custodial?", a: "No. Your keys never leave your device. bitQoin never holds or sees your private keys." },
-    { q: "What chains does this support?", a: "Solana mainnet and Ethereum mainnet. The Qonjoint protocol enforces dual-key signing on both." },
+    { q: "What chains does this support?", a: "Ethereum and Solana, both on mainnet. The Qonjoint protocol enforces dual-key signing on both." },
     { q: "Can I recover a lost key?", a: "No. There is no recovery mechanism. Both keys must be backed up securely by you." },
-    { q: "Is there an app or extension?", a: "No installation needed. Everything runs in your browser. No extension, no app." },
-    { q: "What does 'Qonjoint' mean?", a: "It is the brand name for bitQoin's dual-key vault protocol. Joint control, enforced on-chain." },
-    { q: "Who holds the second key?", a: "You do. Both keys are generated and stored by you. No third party is involved." },
+    { q: "Is there an app or extension?", a: "Cold key mode needs no extension and works in any browser. Wallet connect mode on Solana requires Phantom and Solflare. Wallet connect on Ethereum requires MetaMask with two accounts." },
+    { q: "What does 'Qonjoint' mean?", a: "It is the brand name for bitQoin's dual-key protocol. Joint control, enforced on-chain." },
+    { q: "Who holds the second key?", a: "You do. In cold key mode, both keys are generated and stored by you. In wallet connect mode, your wallets hold the keys." },
+    { q: "When will swap be available?", a: "Token swaps within your Qoin are coming soon. Send and receive are live now on both Ethereum and Solana." },
   ];
 
   const darkContent = (
     <div className="grid md:grid-cols-3 gap-4">
       {[
         { icon: <SketchShield className="w-9 h-9" />, label: "Non-Custodial", sub: "Your keys, your coins. No third party." },
-        { icon: <SketchCoin className="w-9 h-9" />, label: "Solana Native", sub: "Qonjoint. Program-enforced. Battle-tested." },
+        { icon: <ChainLogos size={36} />, label: "Ethereum and Solana", sub: "Qonjoint. Program-enforced. Battle-tested." },
         { icon: <SketchNetwork className="w-9 h-9" />, label: "Open Protocol", sub: "Verifiable on-chain. No black box." },
       ].map((item) => (
         <div key={item.label} className="bg-white/[0.04] border border-white/10 p-5 flex items-start gap-4">
